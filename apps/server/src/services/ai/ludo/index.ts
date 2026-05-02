@@ -1,0 +1,1 @@
+export { LudoAI } from './heuristic';

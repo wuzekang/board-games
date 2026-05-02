@@ -1,0 +1,1 @@
+export { GomokuAI } from './minimax';

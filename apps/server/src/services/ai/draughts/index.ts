@@ -1,0 +1,1 @@
+export { DraughtsAI } from './minimax';

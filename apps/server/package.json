@@ -1,0 +1,29 @@
+{
+  "name": "@board-games/server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@board-games/shared": "workspace:*",
+    "@hono/node-server": "^1.14.1",
+    "@orpc/server": "^1.5.2",
+    "better-sqlite3": "^11.9.1",
+    "drizzle-orm": "^0.43.1",
+    "hono": "^4.7.9",
+    "nanoid": "^5.1.5",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "drizzle-kit": "^0.30.6",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

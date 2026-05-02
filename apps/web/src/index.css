@@ -1,0 +1,263 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Nunito:wght@400;600;700;800;900&display=swap');
+
+@theme {
+  --color-warm-50: #fffaf5;
+  --color-warm-100: #fff0e0;
+  --color-warm-200: #ffe0c2;
+  --color-warm-300: #ffc89a;
+  --color-warm-400: #ffaa6e;
+  --color-warm-500: #ff8c42;
+  --color-warm-600: #e67020;
+  --color-warm-700: #c25a12;
+  --color-warm-800: #9a440e;
+  --color-warm-900: #7a360c;
+  --color-ink-50: #f0f4ff;
+  --color-ink-100: #dce4f8;
+  --color-ink-200: #b8c9f0;
+  --color-ink-300: #8ba5e3;
+  --color-ink-400: #5e7dd4;
+  --color-ink-500: #3d5fc2;
+  --color-ink-600: #2d49a0;
+  --color-ink-700: #243a80;
+  --color-ink-800: #1c2e60;
+  --color-ink-900: #16234a;
+  --color-coral-50: #fff5f3;
+  --color-coral-100: #ffe0db;
+  --color-coral-200: #ffbfb5;
+  --color-coral-300: #ff9383;
+  --color-coral-400: #ff6650;
+  --color-coral-500: #f04030;
+  --color-coral-600: #d42a1a;
+  --color-mint-50: #eefbf3;
+  --color-mint-100: #d0f5de;
+  --color-mint-200: #a4eabe;
+  --color-mint-300: #6dda90;
+  --color-mint-400: #3dc864;
+  --color-mint-500: #22a94a;
+  --color-mint-600: #178838;
+  --color-terra-50: #fdf5ee;
+  --color-terra-100: #f9e4d0;
+  --color-terra-200: #f2c8a0;
+  --color-terra-300: #e8a66c;
+  --color-terra-400: #de8438;
+  --color-terra-500: #c96e20;
+  --color-terra-600: #a85818;
+  --color-terra-700: #8a4614;
+  --color-terra-800: #703a14;
+  --color-terra-900: #5c3016;
+  --color-sky-50: #f0f9ff;
+  --color-sky-100: #e0f2fe;
+  --color-sky-200: #bae6fd;
+  --color-sky-300: #7dd3fc;
+  --color-sky-400: #38bdf8;
+  --color-sky-500: #0ea5e9;
+  --color-sky-600: #0284c7;
+  --color-slate-750: #293548;
+  --font-display: 'ZCOOL KuaiLe', 'STKaiti', 'KaiTi', cursive;
+  --font-body: 'Nunito', -apple-system, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-warm-50);
+  color: #3d2e1e;
+  overflow-x: hidden;
+}
+
+::selection {
+  background-color: var(--color-terra-300);
+  color: white;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-warm-300);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-warm-400);
+}
+
+@keyframes piece-promote {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  35% {
+    transform: scale(1.4);
+    filter: drop-shadow(0 0 8px #d88a50) drop-shadow(0 0 16px #cc7230);
+  }
+  65% {
+    transform: scale(0.9);
+    filter: drop-shadow(0 0 4px #d88a50);
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 transparent);
+  }
+}
+
+.piece-promoting {
+  animation: piece-promote 0.4s ease-out forwards;
+}
+
+.piece-fading {
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  opacity: 0;
+  transform: scale(0.2);
+}
+
+.draughts-movable-cell:hover {
+  filter: brightness(1.25);
+}
+
+@keyframes bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.88) translateY(8px);
+  }
+  60% {
+    transform: scale(1.02) translateY(-1px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.35s ease-out both;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-8px) rotate(2deg); }
+  75% { transform: translateY(-4px) rotate(-1deg); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes stone-drop {
+  0% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+  40% {
+    transform: scale(0.9);
+  }
+  70% {
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-stone-drop {
+  animation: stone-drop 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  15% { transform: rotate(4deg); }
+  30% { transform: rotate(-4deg); }
+  45% { transform: rotate(3deg); }
+  60% { transform: rotate(-2deg); }
+  75% { transform: rotate(1deg); }
+}
+
+.animate-wiggle {
+  animation: wiggle 0.6s ease-in-out;
+}
+
+@keyframes pulse-warm {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 140, 66, 0.4); }
+  50% { box-shadow: 0 0 0 12px rgba(255, 140, 66, 0); }
+}
+
+.animate-pulse-warm {
+  animation: pulse-warm 2s ease-in-out infinite;
+}
+
+@keyframes rainbow-border {
+  0% { border-color: #ff6b6b; }
+  14% { border-color: #ffa502; }
+  28% { border-color: #ffd43b; }
+  42% { border-color: #51cf66; }
+  57% { border-color: #339af0; }
+  71% { border-color: #845ef7; }
+  85% { border-color: #f06595; }
+  100% { border-color: #ff6b6b; }
+}
+
+.animate-rainbow-border {
+  animation: rainbow-border 3s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes confetti-fall {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(20px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.game-card-enter {
+  animation: bounce-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.bg-pattern-dots {
+  background-image: radial-gradient(circle, var(--color-warm-200) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.bg-pattern-warm {
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(255, 170, 110, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(255, 200, 154, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 80%, rgba(255, 140, 66, 0.08) 0%, transparent 50%);
+}

@@ -1,0 +1,12 @@
+{
+  "name": "board-games",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter @board-games/server dev\" \"pnpm --filter @board-games/web dev\"",
+    "build": "pnpm --filter @board-games/shared build && pnpm --filter @board-games/server build && pnpm --filter @board-games/web build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  }
+}

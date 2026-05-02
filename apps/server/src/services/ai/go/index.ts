@@ -1,0 +1,1 @@
+export { GoAI } from './minimax';
