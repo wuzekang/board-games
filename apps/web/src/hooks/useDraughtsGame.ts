@@ -143,6 +143,26 @@ export function useDraughtsGame(
       ? selection.validMoves
       : [];
 
+  const dangerousTargets: Position[] =
+    selection.type === 'pieceSelected' && !isAnimating && localBoard
+      ? (() => {
+          const pieceId = selection.pieceId;
+          const opponentColor = humanColor === PieceColor.DARK ? PieceColor.LIGHT : PieceColor.DARK;
+          const results: Position[] = [];
+          for (const m of selection.validMoves) {
+            const afterMove = applyMove(localBoard, m);
+            const movedPiece = afterMove.pieces.find((p) => p.id === pieceId);
+            if (!movedPiece) continue;
+            const opponentMoves = getAllValidMoves(afterMove, opponentColor);
+            const isDangerous = opponentMoves.some((om) =>
+              om.capturedPieceIds.includes(pieceId),
+            );
+            if (isDangerous) results.push(m.to);
+          }
+          return results;
+        })()
+      : [];
+
   const validTargets =
     selection.type === 'pieceSelected' && !isAnimating
       ? selection.validMoves.map((m) => m.to)
@@ -212,6 +232,7 @@ export function useDraughtsGame(
     forcedCaptureHint,
     movablePieceIds,
     threatenedPieceIds,
+    dangerousTargets,
     handleCellClick,
     resetSelection,
     reset: useCallback(() => { resetSelection(); setLastMove(null); }, [resetSelection]),

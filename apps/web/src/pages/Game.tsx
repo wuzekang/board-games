@@ -314,6 +314,7 @@ export function Game() {
               board={draughts.localBoard ?? (board as BoardState)}
               selectedPieceId={draughts.selectedPieceId}
               validTargets={draughts.validTargets}
+              dangerousTargets={draughts.dangerousTargets}
               onCellClick={draughts.isAnimating ? () => {} : draughts.handleCellClick}
               humanColor={humanColor}
               animState={draughts.animState as DraughtsAnimationState | null}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useMemo } from 'react';
 import type { BoardState, Position, Move } from '@board-games/shared';
 import { isDarkSquare, PieceColor, PieceType, MoveType } from '@board-games/shared';
+import { Skull, Circle } from 'lucide-react';
 import type { DraughtsAnimationState } from '../../types/draughtsAnimation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
@@ -233,6 +234,7 @@ export function Board({
   board,
   selectedPieceId,
   validTargets,
+  dangerousTargets,
   onCellClick,
   humanColor,
   animState,
@@ -245,6 +247,7 @@ export function Board({
   board: BoardState;
   selectedPieceId: string | null;
   validTargets: Position[];
+  dangerousTargets?: Position[];
   onCellClick: (pos: Position) => void;
   humanColor: PieceColor;
   animState: DraughtsAnimationState | null;
@@ -259,6 +262,9 @@ export function Board({
   const flipBoard = humanColor === PieceColor.LIGHT;
 
   const validTargetSet = new Set(validTargets.map((p) => `${p.row},${p.col}`));
+  const dangerousTargetSet = new Set(
+    (dangerousTargets ?? []).map((p) => `${p.row},${p.col}`),
+  );
 
   const selectedPiece = selectedPieceId
     ? displayBoard.pieces.find((p) => p.id === selectedPieceId)
@@ -322,6 +328,8 @@ export function Board({
                 }}
               >
                 {isValidTarget && (() => {
+                  const isDangerous = dangerousTargetSet.has(key);
+                  const indicatorColor = isDangerous ? '#f87171' : '#d97706';
                   const hasEnemy = displayBoard.pieces.some(
                     (p) =>
                       p.position.row === row &&
@@ -329,7 +337,49 @@ export function Board({
                       selectedPiece &&
                       p.color !== selectedPiece.color,
                   );
-                  return hasEnemy ? (
+                  if (isDangerous) {
+                    return (
+                      <>
+                        <div
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: '55%',
+                              height: '55%',
+                              borderRadius: '50%',
+                              border: '2.5px solid #f87171',
+                              opacity: 0.6,
+                            }}
+                          />
+                        </div>
+                        <div
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          <Skull
+                            size={size <= 8 ? 22 : 18}
+                            className="text-red-400 drop-shadow-sm"
+                            style={{ opacity: 0.8 }}
+                          />
+                        </div>
+                      </>
+                    );
+                  }
+                  return (
                     <>
                       <div
                         style={{
@@ -343,49 +393,31 @@ export function Board({
                       >
                         <div
                           style={{
-                            width: '80%',
-                            height: '80%',
+                            width: '55%',
+                            height: '55%',
                             borderRadius: '50%',
                             border: '2.5px solid #d97706',
-                            opacity: 0.8,
+                            opacity: 0.65,
                           }}
                         />
                       </div>
                       <div
                         style={{
                           position: 'absolute',
-                          top: '12%',
-                          right: '12%',
-                          width: '12%',
-                          height: '12%',
-                          borderRadius: '50%',
-                          background: '#d97706',
-                          opacity: 0.8,
+                          inset: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                           pointerEvents: 'none',
                         }}
-                      />
+                      >
+                        <Circle
+                          size={size <= 8 ? 22 : 18}
+                          className="text-amber-600"
+                          style={{ opacity: 0.65 }}
+                        />
+                      </div>
                     </>
-                  ) : (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: '30%',
-                          height: '30%',
-                          borderRadius: '50%',
-                          border: '2.5px solid #d97706',
-                          opacity: 0.65,
-                        }}
-                      />
-                    </div>
                   );
                 })()}
               </div>
