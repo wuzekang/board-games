@@ -229,8 +229,8 @@ Without `setQueryData`, there's a flash between `invalidateQueries` (schedules a
 
 ## Deployment
 
-- **Domain**: `play.plota.cc` (Cloudflare-proxied A record → 35.77.211.168)
-- **Server**: EC2 (same as plota), systemd service `board-games` on port 3001
+- **Domain**: `play.plota.cc` (Cloudflare-proxied)
+- **Server**: EC2, systemd service `board-games` on port 3001
 - **CI/CD**: GitHub Actions `.github/workflows/deploy.yml` — push to master triggers build → scp → ssh deploy
 - **Server build**: tsup bundles server as single `dist/index.js` (drizzle-orm inlined, better-sqlite3 external)
 - **EC2 first-time setup**: `bash scripts/setup-ec2.sh` (creates systemd service + nginx config)
