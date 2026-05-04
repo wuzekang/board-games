@@ -226,31 +226,9 @@ export function Game() {
   const isProcessing = draughts.isPending || chess.isPending || xiangqi.isPending || gomoku.isPending || go.isPending || ludo.isPending || jungle.isPending || undoMutation.isPending;
 
   return (
-    <div className="mx-auto flex min-h-full max-w-7xl animate-fade-in px-2 py-2 sm:px-3 sm:py-3">
-      <div className="flex flex-1 flex-col gap-4 lg:flex-row lg:gap-5 min-w-0">
-        <div className="flex flex-1 flex-col items-center gap-3 min-w-0 lg:h-full lg:overflow-hidden">
-          <div className="lg:hidden">
-            <GameStatus
-              currentTurn={game.currentPlayer}
-              humanColor={game.humanColor}
-              winner={game.winner}
-              isFinished={isFinished}
-              isThinking={isProcessing && game.currentPlayer === 'human'}
-              customResult={gameResult}
-              colorLabel={colorLabel}
-              isInCheck={chess.isInCheck || xiangqi.isInCheck}
-            />
-          </div>
-          {!isXiangqi && !isChess && !isGomoku && !isGo && !isLudo && !isJungle && (
-            <div className="h-7 mb-1 flex items-center justify-center lg:hidden">
-              {draughts.forcedCaptureHint ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs font-bold text-amber-700 animate-wiggle" style={{ fontFamily: 'var(--font-display)' }}>
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
-                  {draughts.forcedCaptureHint}
-                </span>
-              ) : <span className="min-h-[1.75rem]">&nbsp;</span>}
-            </div>
-          )}
+    <div className="mx-auto flex min-h-full lg:h-full max-w-7xl animate-fade-in px-2 py-2 sm:px-3 sm:py-3">
+      <div className="flex flex-1 flex-col gap-4 lg:flex-row lg:gap-5 min-w-0 min-h-0">
+        <div className="flex flex-1 flex-col items-center gap-2 min-w-0 min-h-0 lg:h-full lg:overflow-hidden">
           {isLudo && (
             <LudoDicePanel
               phase={ludo.phase}
@@ -331,6 +309,20 @@ export function Game() {
               validMoves={draughts.validMoves}
             />
           )}
+          <div className="lg:hidden w-full">
+            <GameStatus
+              currentTurn={game.currentPlayer}
+              humanColor={game.humanColor}
+              winner={game.winner}
+              isFinished={isFinished}
+              isThinking={isProcessing && game.currentPlayer === 'human'}
+              customResult={gameResult}
+              colorLabel={colorLabel}
+              isInCheck={chess.isInCheck || xiangqi.isInCheck}
+              forcedCaptureHint={!isXiangqi && !isChess && !isGomoku && !isGo && !isLudo && !isJungle ? draughts.forcedCaptureHint : null}
+              compact
+            />
+          </div>
         </div>
 
         <aside className="w-full flex-shrink-0 lg:w-[280px]">

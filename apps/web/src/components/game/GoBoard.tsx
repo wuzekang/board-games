@@ -54,7 +54,7 @@ export function GoBoard({
     >
       <svg
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}
-        viewBox={`0 0 ${gridSvgSize} ${gridSvgSize}`}
+        viewBox={`-0.5 -0.5 ${size} ${size}`}
         preserveAspectRatio="none"
       >
         {Array.from({ length: size }, (_, i) => {
@@ -79,7 +79,7 @@ export function GoBoard({
             style={{
               position: 'absolute',
               left: `${((dc + 0.5) / size) * 100}%`,
-              bottom: `${(((size - 1) - dr) / size) * 100 + (100 / size) * 0.45}%`,
+              bottom: `${((size - 1 - dr + 0.5) / size) * 100}%`,
               transform: 'translate(-50%, 50%)',
               fontSize: size === 19 ? 'max(0.55rem, 0.7vw)' : 'max(0.6rem, 0.85vw)',
               color: '#8b7355',
@@ -92,7 +92,7 @@ export function GoBoard({
           <span
             style={{
               position: 'absolute',
-              left: `${(100 / size) * 0.45}%`,
+              left: `${(0.5 / size) * 100 - (100 / size) * 0.55}%`,
               top: `${((dr + 0.5) / size) * 100}%`,
               transform: 'translate(-50%, -50%)',
               fontSize: size === 19 ? 'max(0.55rem, 0.7vw)' : 'max(0.6rem, 0.85vw)',
@@ -119,8 +119,8 @@ export function GoBoard({
               onClick={isOccupied || !canInteract ? undefined : () => onIntersectionClick({ row, col })}
               style={{
                 position: 'absolute',
-                left: `${(dc / size) * 100}%`,
-                top: `${(dr / size) * 100}%`,
+                left: `${((dc + 0.5) / size) * 100 - 100 / size / 2}%`,
+                top: `${((dr + 0.5) / size) * 100 - 100 / size / 2}%`,
                 width: `${100 / size}%`,
                 height: `${100 / size}%`,
                 cursor: isOccupied ? 'default' : canInteract ? 'pointer' : 'default',
@@ -141,8 +141,8 @@ export function GoBoard({
               key={stone.id}
               style={{
                 position: 'absolute',
-                left: `${(dc / size) * 100}%`,
-                top: `${(dr / size) * 100}%`,
+                left: `${((dc + 0.5) / size) * 100 - 100 / size / 2}%`,
+                top: `${((dr + 0.5) / size) * 100 - 100 / size / 2}%`,
                 width: `${100 / size}%`,
                 height: `${100 / size}%`,
                 display: 'flex',

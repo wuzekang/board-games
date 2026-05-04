@@ -56,7 +56,7 @@ export function GomokuBoard({
     >
       <svg
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}
-        viewBox={`0 0 ${gridSvgSize} ${gridSvgSize}`}
+        viewBox={`-0.5 -0.5 ${BOARD_SIZE} ${BOARD_SIZE}`}
         preserveAspectRatio="none"
       >
         {Array.from({ length: BOARD_SIZE }, (_, i) => {
