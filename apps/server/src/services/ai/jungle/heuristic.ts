@@ -351,6 +351,31 @@ export function evaluateJungleBoard(
   return materialScore + pstScore + trapScore + denScore + shieldScore + huntScore + blockScore;
 }
 
+function isAdjacentToDen(pos: Position, den: Position): boolean {
+  return manhattan(pos, den) === 1;
+}
+
+function isOnPath(from: Position, to: Position, pos: Position): boolean {
+  if (pos.row === from.row && pos.col === from.col) return true;
+  const dr = to.row - from.row;
+  const dc = to.col - from.col;
+  let r = from.row;
+  let c = from.col;
+  const sr = dr === 0 ? 0 : (dr > 0 ? 1 : -1);
+  const sc = dc === 0 ? 0 : (dc > 0 ? 1 : -1);
+  while (r !== to.row || c !== to.col) {
+    if (r !== from.row || c !== from.col) {
+      if (pos.row === r && pos.col === c) return true;
+    }
+    if (Math.abs(to.row - r) >= Math.abs(to.col - c)) {
+      r += sr;
+    } else {
+      c += sc;
+    }
+  }
+  return false;
+}
+
 function isGuardSquare(pos: Position, color: PieceColor): boolean {
   const guardSet = color === PieceColor.DARK ? DARK_GUARD_SET : LIGHT_GUARD_SET;
   return guardSet.has(posKey(pos));
@@ -390,15 +415,17 @@ export function moveOrderScore(move: JungleMove, board: JungleBoardState, aiColo
     const enemyPieces = board.pieces.filter((p) => p.color === humanColor);
     let minTtD = 99;
     let threatId: string | null = null;
+    let threatPos: Position | null = null;
     for (const t of enemyPieces) {
       const ttd = manhattan(t.position, aiDen);
       if (ttd < minTtD) {
         minTtD = ttd;
         threatId = t.id;
+        threatPos = t.position;
       }
     }
 
-    if (minTtD <= 6 && threatId) {
+    if (minTtD <= 6 && threatId && threatPos) {
       const ownPieces = board.pieces.filter((p) => p.color === aiColor);
       let bestTtG = 99;
       for (const own of ownPieces) {
@@ -410,20 +437,53 @@ export function moveOrderScore(move: JungleMove, board: JungleBoardState, aiColo
         score += 20000;
       }
 
-      const fromIsGuard = isGuardSquare(piece.position, aiColor);
-      const toIsGuard = isGuardSquare(move.to, aiColor);
+      if (gap <= 4) {
+        const fromIsGuard = isGuardSquare(piece.position, aiColor);
+        const toIsGuard = isGuardSquare(move.to, aiColor);
 
-      if (fromIsGuard && !toIsGuard && gap <= 3) {
-        score -= 8000;
-      }
+        if (fromIsGuard && !toIsGuard) {
+          score -= 10000;
+        }
 
-      if (gap <= 3) {
+        if (isAdjacentToDen(move.to, aiDen) && !isAdjacentToDen(piece.position, aiDen)) {
+          score += 12000;
+        }
+
+        if (isGuardSquare(move.to, aiColor) && !isGuardSquare(piece.position, aiColor)) {
+          score += 8000;
+        }
+
+        const threatDistBefore = manhattan(threatPos, aiDen);
+        let blockedBefore = false;
+        for (const own of ownPieces) {
+          if (isOnPath(threatPos, aiDen, own.position)) {
+            blockedBefore = true;
+            break;
+          }
+        }
+        const otherOwnPieces = ownPieces.filter((p) => p.id !== piece.id);
+        let blockedAfter = false;
+        for (const own of otherOwnPieces) {
+          if (isOnPath(threatPos, aiDen, own.position)) {
+            blockedAfter = true;
+            break;
+          }
+        }
+        if (!isOnPath(threatPos, aiDen, move.to)) {
+          // moving piece doesn't block the path
+        } else {
+          blockedAfter = true;
+        }
+
+        if (blockedBefore && !blockedAfter) {
+          score -= 15000;
+        }
+
         const pieceTtG = manhattan(piece.position, aiDen);
         const newTtG = manhattan(move.to, aiDen);
 
-        const otherPieces = board.pieces.filter((p) => p.color === aiColor && p.id !== piece.id);
         let otherBestTtG = 99;
-        for (const op of otherPieces) {
+        for (const op of otherOwnPieces) {
           otherBestTtG = Math.min(otherBestTtG, manhattan(op.position, aiDen));
         }
         const newGap = minTtD - Math.min(otherBestTtG, newTtG);
