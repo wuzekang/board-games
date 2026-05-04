@@ -1,8 +1,7 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as schema from './schema';
-import { mkdirSync } from 'fs';
+import { mkdirSync, readFileSync, readdirSync } from 'fs';
 import { dirname, resolve } from 'path';
 
 const DB_PATH = process.env.DB_PATH || './data/board-games.db';
@@ -16,4 +15,25 @@ sqlite.pragma('foreign_keys = ON');
 export const db = drizzle(sqlite, { schema });
 
 const migrationsFolder = process.env.MIGRATIONS_FOLDER || resolve(import.meta.dirname, 'migrations');
-migrate(db, { migrationsFolder });
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )
+`);
+
+const journalPath = resolve(migrationsFolder, 'meta/_journal.json');
+const journal = JSON.parse(readFileSync(journalPath, 'utf-8'));
+const applied = new Set(
+  sqlite.prepare("SELECT hash FROM __drizzle_migrations").all().map((r: any) => r.hash)
+);
+for (const entry of journal.entries) {
+  if (applied.has(entry.tag)) continue;
+  const sqlFile = resolve(migrationsFolder, `${entry.tag}.sql`);
+  const sql = readFileSync(sqlFile, 'utf-8')
+    .replace(/--> statement-breakpoint\s*\n/g, '\n');
+  sqlite.exec(sql);
+  sqlite.prepare("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)").run(entry.tag, Date.now());
+}
