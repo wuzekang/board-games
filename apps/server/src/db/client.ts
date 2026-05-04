@@ -24,26 +24,24 @@ sqlite.exec(`
   )
 `);
 
-const journalPath = resolve(migrationsFolder, 'meta/_journal.json');
-const journal = JSON.parse(readFileSync(journalPath, 'utf-8'));
+const { count } = sqlite.prepare("SELECT COUNT(*) as count FROM __drizzle_migrations").get() as any;
 
-const applied = new Set(
-  sqlite.prepare("SELECT hash FROM __drizzle_migrations").all().map((r: any) => r.hash)
-);
-
-if (applied.size === 0) {
-  const tables = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '__%'").all();
-  if (tables.length > 0) {
+if (count === 0) {
+  const userTables = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '__%' AND name NOT LIKE 'sqlite_%'").all();
+  if (userTables.length > 0) {
+    const journalPath = resolve(migrationsFolder, 'meta/_journal.json');
+    const journal = JSON.parse(readFileSync(journalPath, 'utf-8'));
     for (const entry of journal.entries) {
       sqlite.prepare("INSERT OR IGNORE INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)").run(entry.tag, Date.now());
     }
-  }
-} else {
-  for (const entry of journal.entries) {
-    if (applied.has(entry.tag)) continue;
-    const sqlFile = resolve(migrationsFolder, `${entry.tag}.sql`);
-    const sql = readFileSync(sqlFile, 'utf-8').replace(/--> statement-breakpoint\s*\n/g, '\n');
-    sqlite.exec(sql);
-    sqlite.prepare("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)").run(entry.tag, Date.now());
+  } else {
+    const journalPath = resolve(migrationsFolder, 'meta/_journal.json');
+    const journal = JSON.parse(readFileSync(journalPath, 'utf-8'));
+    for (const entry of journal.entries) {
+      const sqlFile = resolve(migrationsFolder, `${entry.tag}.sql`);
+      const sql = readFileSync(sqlFile, 'utf-8').replace(/--> statement-breakpoint\s*\n/g, '\n');
+      sqlite.exec(sql);
+      sqlite.prepare("INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)").run(entry.tag, Date.now());
+    }
   }
 }
