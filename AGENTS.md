@@ -7,7 +7,7 @@ Board games (棋类游戏) browser platform. Human vs AI. Built as a pnpm monore
 ## Architecture
 
 - **apps/web** — React 19 + Vite SPA (port 5173). React Router, TanStack React Query, Tailwind CSS v4, oRPC client.
-- **apps/server** — Hono server (port 3000). oRPC server, Drizzle ORM + SQLite (`apps/server/data/board-games.db`), tsx watch for dev.
+- **apps/server** — Hono server (port 3001). oRPC server, Drizzle ORM + SQLite (`apps/server/data/board-games.db`), tsup bundles to single `dist/index.js`.
 - **packages/shared** — Shared TypeScript library: game rules, types, contracts. The single source of truth for board logic.
 
 Client-server communication uses oRPC (type-safe RPC over HTTP) at `POST /rpc/{method}`.
@@ -226,6 +226,17 @@ Without `setQueryData`, there's a flash between `invalidateQueries` (schedules a
 
 - `games` table: id, game_type, status, current_player, board_state (JSON), human_color, ai_difficulty, winner (nullable, 'draw' for draws), draw_reason (nullable), move_count, timestamps
 - `moves` table: id, game_id (FK), move_number, player, from_pos, to_pos, move_type, captured_pieces (JSON array string), capture_path, promoted, promotion_to (nullable), board_state_after (JSON), timestamps
+
+## Deployment
+
+- **Domain**: `play.plota.cc` (Cloudflare-proxied A record → 35.77.211.168)
+- **Server**: EC2 (same as plota), systemd service `board-games` on port 3001
+- **CI/CD**: GitHub Actions `.github/workflows/deploy.yml` — push to master triggers build → scp → ssh deploy
+- **Server build**: tsup bundles server as single `dist/index.js` (drizzle-orm inlined, better-sqlite3 external)
+- **EC2 first-time setup**: `bash scripts/setup-ec2.sh` (creates systemd service + nginx config)
+- **Runtime env**: `PORT=3001`, `DB_PATH`, `WEB_DIST`, `MIGRATIONS_FOLDER` (set in systemd unit)
+- **Migration**: Auto-runs on server start via `sqlite.exec()` — detects existing DB to skip already-applied migrations
+- **Dev proxy**: Vite proxies `/rpc` → `localhost:3001` (no CORS needed)
 
 ## Known Issues
 
