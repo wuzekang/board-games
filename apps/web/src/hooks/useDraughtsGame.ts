@@ -214,5 +214,6 @@ export function useDraughtsGame(
     threatenedPieceIds,
     handleCellClick,
     resetSelection,
+    reset: useCallback(() => { resetSelection(); setLastMove(null); }, [resetSelection]),
   };
 }

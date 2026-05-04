@@ -238,6 +238,40 @@ Without `setQueryData`, there's a flash between `invalidateQueries` (schedules a
 - **Migration**: Auto-runs on server start via `sqlite.exec()` — detects existing DB to skip already-applied migrations
 - **Dev proxy**: Vite proxies `/rpc` → `localhost:3001` (no CORS needed)
 
+## Jungle (斗兽棋) — New Game
+
+### Shared Package
+- `@board-games/shared/jungle` — Types & rules (types.ts, board.ts, rules.ts)
+- **Board**: 9×7, pieces: Elephant(8) > Lion(7) > Tiger(6) > Leopard(5) > Dog(4) > Wolf(3) > Cat(2) > Rat(1). Elephant≠Rat, Rat→Elephant.
+- **Special squares**: River (rows 3-5, cols 1-2 & 4-5), Traps (3 per side), Dens (1 per side).
+- **Win**: Enter opponent's den OR capture all opponent's pieces.
+- **Types**: `JungleBoardState = { size: 9, pieces: JunglePiece[], nextColor: PieceColor }`, `JungleMove = { pieceId, from, to, isCapture, capturedId? }`
+
+### Server AI
+- `apps/server/src/services/ai/jungle/` — MCTS implementation
+- **mcts.ts**: `JungleMCTS` class implementing `AIEngine<JungleBoardState, JungleMove>`. Config: iterations (easy=200, medium=1000, hard=2000), c=1.0, rolloutDepth=40.
+- **heuristic.ts**: Board evaluation (material + PST + counter-bonus + trap-control + den-proximity + den-shield + rat-hunt + river-block). Move ordering score for MCTS expansion.
+- **index.ts**: Exports `JungleMCTS`
+- **factory.ts**: `createJungleAI(difficulty)` returns `JungleMCTS` instance
+- **Strategy**: `JungleStrategy.getAiMove()` calls `createJungleAI(difficulty).getBestMove(board, aiColor)`
+
+### Rust Self-Play Tool
+- `tools/jungle-self-play/` — Cargo project for MCTS self-play data generation
+- **Source files**: types.rs, constants.rs, rules.rs, heuristic.rs, mcts.rs, self_play.rs, encoding.rs, main.rs
+- **Encoding**: 20-channel board (8 dark piece types + 8 light piece types + turn + river + own-traps + half-move-clock), shape [20, 9, 7]
+- **Move index**: `from.idx() * 63 + to.idx()` (max 63×63 = 3969)
+- **Output**: JSONL with `{board_state, policy_target, value_target, move_number, color_to_move}`
+- **Critical bug fix**: `ensure_expanded` must check `children.len() > 0` not `visits > 0` — otherwise root never expands after first simulate
+- **Another critical bug fix**: `valid_moves_for_piece` must accept `color` parameter instead of checking `board.next_color`, otherwise `all_valid_moves(board, opponent_color)` returns empty
+
+### Neural Network Training
+- **Training dir**: `tools/jungle-self-play/training/`
+- **Architecture**: Dual-head CNN (ResNet style). Input [20, 9, 7] → Conv → ResBlocks → Policy head (3969 logits) + Value head (tanh [-1, 1])
+- **Model sizes**: Small=2blocks/32ch (551K params), Medium=4blocks/64ch (816K params)
+- **Loss**: Policy=KL-divergence with MCTS visit distribution, Value=MSE, L2 regularization
+- **Training**: convert_data.py (JSONL→numpy), train.py (PyTorch), exports ONNX
+- **ONNX model**: ~7.7KB for small model, suitable for browser inference via onnxruntime-web
+
 ## Known Issues
 
 - `favicon.ico` 404 (cosmetic only).
