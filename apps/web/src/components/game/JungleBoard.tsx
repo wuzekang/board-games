@@ -56,6 +56,7 @@ export function JungleBoard({
   humanColor,
   lastMove,
   isFinished,
+  isProcessing,
 }: {
   board: JungleBoardState;
   selectedPieceId: string | null;
@@ -64,6 +65,7 @@ export function JungleBoard({
   humanColor: PieceColor;
   lastMove: { from: Position; to: Position } | null;
   isFinished: boolean;
+  isProcessing?: boolean;
 }) {
   const flip = humanColor === PieceColor.LIGHT;
 
@@ -106,6 +108,8 @@ export function JungleBoard({
         aspectRatio: `${COLS / ROWS}`,
         flexShrink: 0,
         position: 'relative',
+        opacity: isProcessing ? 0.6 : 1,
+        transition: 'opacity 150ms ease',
       }}
     >
       <svg
@@ -279,7 +283,7 @@ export function JungleBoard({
               width={CELL_SIZE}
               height={CELL_SIZE}
               fill="transparent"
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: isProcessing ? 'default' : 'pointer' }}
               onClick={() => onCellClick({ row: r, col: c })}
             />
           )),

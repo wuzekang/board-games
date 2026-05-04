@@ -54,6 +54,7 @@ export function useGomokuGame(
             setLocalBoard(applyGomokuMove(applyGomokuMove(boardBeforeMove, move), aiGomokuMove));
           }
           queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+          queryClient.invalidateQueries({ queryKey: ['moveHistory', gameId] });
         },
         onError: () => {
           setLastMove(null);

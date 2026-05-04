@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { BoardState, Move, Position } from '@board-games/shared';
 import { PieceColor } from '@board-games/shared';
-import { applyMove, getAllValidMoves } from '@board-games/shared/draughts';
+import { applyMove, getAllValidMoves, getValidMovesForPiece } from '@board-games/shared/draughts';
 import { orpc } from '../orpc-client';
 import { useDraughtsAnimationSequencer } from './useDraughtsAnimationSequencer';
 import { buildDraughtsMoveFrames } from '../types/draughtsAnimation';
@@ -27,15 +27,15 @@ export function useDraughtsGame(
   const { animState, runSequence, clearAnim } = useDraughtsAnimationSequencer();
   const isAnimating = animState !== null;
 
-  useEffect(() => {
-    if (!animState && board) {
-      setLocalBoard(board);
-    }
-  }, [board, animState]);
-
   const makeMoveMutation = useMutation({
     mutationFn: (move: Move) => orpc.makeMove({ gameId: gameId!, move: move as any }),
   });
+
+  useEffect(() => {
+    if (!animState && board && !makeMoveMutation.isPending) {
+      setLocalBoard(board);
+    }
+  }, [board, animState, makeMoveMutation.isPending]);
 
   const handleDraughtsMove = useCallback(
     (targetMove: Move, currentBoard: BoardState) => {
@@ -63,6 +63,7 @@ export function useDraughtsGame(
                 setLastMove({ from: aiMove.from, to: aiMove.to });
                 clearAnim();
                 queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+                queryClient.invalidateQueries({ queryKey: ['moveHistory', gameId] });
               }, (frame) => {
                 if (frame.type === 'move') playSound('move');
                 if (frame.type === 'capture') playSound('capture');
@@ -70,6 +71,7 @@ export function useDraughtsGame(
               });
             } else {
               queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+              queryClient.invalidateQueries({ queryKey: ['moveHistory', gameId] });
             }
           },
           onError: () => {
@@ -89,7 +91,7 @@ export function useDraughtsGame(
   );
 
   const handleCellClick = useCallback(
-    async (pos: Position) => {
+    (pos: Position) => {
       if (!localBoard || !isHumanTurn || isFinished || makeMoveMutation.isPending || isAnimating) return;
 
       if (selection.type === 'pieceSelected') {
@@ -105,7 +107,7 @@ export function useDraughtsGame(
           (p) => p.position.row === pos.row && p.position.col === pos.col && p.color === humanColor,
         );
         if (clickedPiece && clickedPiece.id !== selection.pieceId) {
-          const moves = (await orpc.getValidMoves({ gameId: gameId!, pieceId: clickedPiece.id })) as unknown as Move[];
+          const moves = getValidMovesForPiece(localBoard, clickedPiece.id);
           setSelection({ type: 'pieceSelected', pieceId: clickedPiece.id, validMoves: moves });
           playSound('click');
           return;
@@ -119,12 +121,12 @@ export function useDraughtsGame(
         (p) => p.position.row === pos.row && p.position.col === pos.col && p.color === humanColor,
       );
       if (clickedPiece) {
-        const moves = (await orpc.getValidMoves({ gameId: gameId!, pieceId: clickedPiece.id })) as unknown as Move[];
+        const moves = getValidMovesForPiece(localBoard, clickedPiece.id);
         setSelection({ type: 'pieceSelected', pieceId: clickedPiece.id, validMoves: moves });
         playSound('click');
       }
     },
-    [localBoard, isHumanTurn, isFinished, selection, humanColor, gameId, makeMoveMutation, isAnimating, handleDraughtsMove],
+    [localBoard, isHumanTurn, isFinished, selection, humanColor, makeMoveMutation, isAnimating, handleDraughtsMove],
   );
 
   useEffect(() => {

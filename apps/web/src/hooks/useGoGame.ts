@@ -57,6 +57,7 @@ export function useGoGame(
             }
           }
           queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+          queryClient.invalidateQueries({ queryKey: ['moveHistory', gameId] });
         },
         onError: () => {
           setLastMove(null);
@@ -91,6 +92,7 @@ export function useGoGame(
           }
         }
         queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+        queryClient.invalidateQueries({ queryKey: ['moveHistory', gameId] });
       },
       onError: () => {
         setLocalBoard(boardBeforeMove);

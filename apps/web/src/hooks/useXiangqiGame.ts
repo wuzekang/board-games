@@ -3,8 +3,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Position } from '@board-games/shared';
 import { PieceColor } from '@board-games/shared';
 import type { XiangqiBoardState, XiangqiMove } from '@board-games/shared/xiangqi';
-import { applyXiangqiMove, getAllXiangqiValidMoves, isXiangqiInCheck as checkIsInCheck } from '@board-games/shared/xiangqi';
+import { applyXiangqiMove, getAllXiangqiValidMoves, getXiangqiValidMovesForPiece, isXiangqiInCheck as checkIsInCheck } from '@board-games/shared/xiangqi';
 import { orpc } from '../orpc-client';
+import { addToast } from './useToast';
 import { playSound } from '../utils/sounds';
 
 type XiangqiSelectionState =
@@ -37,7 +38,7 @@ export function useXiangqiGame(
   }, [localBoard, humanColor]);
 
   const handleCellClick = useCallback(
-    async (pos: Position) => {
+    (pos: Position) => {
       if (!localBoard || !isHumanTurn || isFinished || makeMoveMutation.isPending) return;
 
       if (selection.type === 'pieceSelected') {
@@ -60,11 +61,13 @@ export function useXiangqiGame(
                 setLocalBoard(applyXiangqiMove(applyXiangqiMove(boardBeforeMove, targetMove), aiMove));
               }
               queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+              queryClient.invalidateQueries({ queryKey: ['moveHistory', gameId] });
             },
             onError: () => {
               setLastMove(null);
               setSelection({ type: 'idle' });
               setLocalBoard(boardBeforeMove);
+              addToast('走棋失败，请重试');
               queryClient.invalidateQueries({ queryKey: ['game', gameId] });
             },
           });
@@ -75,8 +78,8 @@ export function useXiangqiGame(
           (p) => p.position.row === pos.row && p.position.col === pos.col && p.color === humanColor,
         );
         if (clickedPiece && clickedPiece.id !== selection.pieceId) {
-          const moves = await orpc.getValidMoves({ gameId: gameId!, pieceId: clickedPiece.id });
-          setSelection({ type: 'pieceSelected', pieceId: clickedPiece.id, validMoves: moves as XiangqiMove[] });
+          const moves = getXiangqiValidMovesForPiece(localBoard, clickedPiece.id);
+          setSelection({ type: 'pieceSelected', pieceId: clickedPiece.id, validMoves: moves });
           playSound('click');
           return;
         }
@@ -89,12 +92,12 @@ export function useXiangqiGame(
         (p) => p.position.row === pos.row && p.position.col === pos.col && p.color === humanColor,
       );
       if (clickedPiece) {
-        const moves = await orpc.getValidMoves({ gameId: gameId!, pieceId: clickedPiece.id });
-        setSelection({ type: 'pieceSelected', pieceId: clickedPiece.id, validMoves: moves as XiangqiMove[] });
+        const moves = getXiangqiValidMovesForPiece(localBoard, clickedPiece.id);
+        setSelection({ type: 'pieceSelected', pieceId: clickedPiece.id, validMoves: moves });
         playSound('click');
       }
     },
-    [localBoard, isHumanTurn, isFinished, selection, humanColor, gameId, makeMoveMutation, queryClient],
+    [localBoard, isHumanTurn, isFinished, selection, humanColor, makeMoveMutation, queryClient],
   );
 
   const prevIsInCheckRef = useRef(false);

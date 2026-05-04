@@ -55,6 +55,7 @@ export function ChessBoard({
   isInCheck,
   lastMove,
   threatenedPieceIds,
+  isProcessing,
 }: {
   board: ChessBoardState;
   selectedPieceId: string | null;
@@ -64,6 +65,7 @@ export function ChessBoard({
   isInCheck: boolean;
   lastMove: { from: Position; to: Position } | null;
   threatenedPieceIds?: Set<string>;
+  isProcessing?: boolean;
 }) {
   const flipBoard = humanColor === PieceColor.DARK;
 
@@ -97,7 +99,7 @@ export function ChessBoard({
   return (
     <div
       className="rounded-xl shadow-md overflow-hidden"
-      style={{ width: '100%', maxHeight: '100%', aspectRatio: '1 / 1', flexShrink: 0, position: 'relative' }}
+      style={{ width: '100%', maxHeight: '100%', aspectRatio: '1 / 1', flexShrink: 0, position: 'relative', opacity: isProcessing ? 0.6 : 1, transition: 'opacity 150ms ease' }}
     >
       <div style={{ width: '100%', height: '100%', position: 'relative' }}>
         {cells.map(({ row, col }) => {
@@ -140,7 +142,7 @@ export function ChessBoard({
                 height: `${100 / SIZE}%`,
                 background: bgColor,
                 boxSizing: 'border-box',
-                cursor: 'pointer',
+                cursor: isProcessing ? 'default' : 'pointer',
               }}
             >
               {isSelected && (
@@ -271,7 +273,7 @@ export function ChessBoard({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                cursor: 'pointer',
+                cursor: isProcessing ? 'default' : 'pointer',
                 zIndex: 10,
               }}
             >

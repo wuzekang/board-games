@@ -36,6 +36,7 @@ export function useLudoGame(
       setPhase({ type: 'idle' });
       if (data.game) queryClient.setQueryData(['game', gameId], data.game);
       queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+      queryClient.invalidateQueries({ queryKey: ['moveHistory', gameId] });
     },
     onError: () => {
       isSubmittingPass.current = false;
@@ -87,6 +88,7 @@ export function useLudoGame(
       }
       setPhase({ type: 'rolled', diceValue: data.diceValue, validMoves });
       queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+      queryClient.invalidateQueries({ queryKey: ['moveHistory', gameId] });
     },
     onError: () => {
       addToast('掷骰子失败，请重试');

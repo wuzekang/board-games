@@ -223,7 +223,7 @@ export function Game() {
           : 'AI 赢了，再试一次！'
     : null;
 
-  const isProcessing = draughts.isPending || chess.isPending || xiangqi.isPending || gomoku.isPending || go.isPending || ludo.isPending || jungle.isPending || undoMutation.isPending;
+  const isProcessing = draughts.isPending || chess.isPending || xiangqi.isPending || gomoku.isPending || go.isPending || ludo.isPending || jungle.isPending || undoMutation.isPending || resignMutation.isPending;
 
   return (
     <div className="mx-auto flex min-h-full lg:h-full max-w-7xl animate-fade-in px-2 py-2 sm:px-3 sm:py-3">
@@ -247,6 +247,7 @@ export function Game() {
               isHumanTurn={isHumanTurn}
               lastMove={go.lastMove}
               isFinished={isFinished}
+              isProcessing={isProcessing}
             />
           ) : isGomoku ? (
             <GomokuBoard
@@ -257,6 +258,7 @@ export function Game() {
               lastMove={gomoku.lastMove}
               winningLine={gomoku.winningLine}
               isFinished={isFinished}
+              isProcessing={isProcessing}
             />
           ) : isXiangqi ? (
             <XiangqiBoard
@@ -267,6 +269,7 @@ export function Game() {
               humanColor={humanColor}
               isInCheck={xiangqi.isInCheck}
               lastMove={xiangqi.lastMove}
+              isProcessing={isProcessing}
             />
           ) : isChess ? (
             <ChessBoard
@@ -278,6 +281,7 @@ export function Game() {
               isInCheck={chess.isInCheck}
               lastMove={chess.lastMove}
               threatenedPieceIds={chess.threatenedPieceIds}
+              isProcessing={isProcessing}
             />
           ) : isLudo ? (
             <LudoBoard
@@ -294,6 +298,7 @@ export function Game() {
               humanColor={humanColor}
               lastMove={jungle.lastMove}
               isFinished={isFinished}
+              isProcessing={isProcessing}
             />
           ) : (
             <Board
@@ -307,6 +312,7 @@ export function Game() {
               hasForcedCapture={draughts.forcedCaptureHint != null}
               threatenedPieceIds={draughts.threatenedPieceIds}
               validMoves={draughts.validMoves}
+              isProcessing={isProcessing}
             />
           )}
           <div className="lg:hidden w-full">
@@ -315,7 +321,7 @@ export function Game() {
               humanColor={game.humanColor}
               winner={game.winner}
               isFinished={isFinished}
-              isThinking={isProcessing && game.currentPlayer === 'human'}
+              isThinking={isProcessing}
               customResult={gameResult}
               colorLabel={colorLabel}
               isInCheck={chess.isInCheck || xiangqi.isInCheck}
@@ -333,7 +339,7 @@ export function Game() {
                 humanColor={game.humanColor}
                 winner={game.winner}
                 isFinished={isFinished}
-                isThinking={isProcessing && game.currentPlayer === 'human'}
+                isThinking={isProcessing}
                 customResult={gameResult}
                 colorLabel={colorLabel}
                 isInCheck={chess.isInCheck || xiangqi.isInCheck}

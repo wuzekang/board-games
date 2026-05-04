@@ -36,7 +36,8 @@ function PieceElement({
   flipBoard,
   boardSize,
   onPieceClick,
-}: PieceElementProps) {
+  isProcessing,
+}: PieceElementProps & { isProcessing?: boolean }) {
   const prevMoveKey = useRef<string | null>(null);
   const outerRef = useRef<HTMLDivElement>(null);
 
@@ -90,7 +91,7 @@ function PieceElement({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    cursor: isMovable ? 'pointer' : 'default',
+    cursor: isProcessing || !isMovable ? 'default' : 'pointer',
   };
 
   const movableRing = isMovable && !isSelected && (
@@ -239,6 +240,7 @@ export function Board({
   hasForcedCapture,
   threatenedPieceIds,
   validMoves,
+  isProcessing,
 }: {
   board: BoardState;
   selectedPieceId: string | null;
@@ -250,6 +252,7 @@ export function Board({
   hasForcedCapture?: boolean;
   threatenedPieceIds?: Set<string>;
   validMoves?: Move[];
+  isProcessing?: boolean;
 }) {
   const size = board.size;
   const displayBoard = animState?.boardSnapshot ?? board;
@@ -275,7 +278,7 @@ export function Board({
     <TooltipProvider>
       <div
         className="rounded-xl shadow-md overflow-hidden"
-        style={{ width: '100%', maxHeight: '100%', aspectRatio: '1 / 1', flexShrink: 0, position: 'relative' }}
+        style={{ width: '100%', maxHeight: '100%', aspectRatio: '1 / 1', flexShrink: 0, position: 'relative', opacity: isProcessing ? 0.6 : 1, transition: 'opacity 150ms ease' }}
       >
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
           {cells.map(({ row, col, isDark }) => {
@@ -314,7 +317,7 @@ export function Board({
                   height: `${100 / size}%`,
                   background: bgColor,
                   border: `0.5px solid ${isDark ? '#5c2d0a' : '#d9a84e'}`,
-                  cursor: hasMovablePiece ? 'pointer' : 'default',
+                  cursor: isProcessing ? 'default' : (hasMovablePiece ? 'pointer' : 'default'),
                   boxSizing: 'border-box',
                 }}
               >
@@ -409,6 +412,7 @@ export function Board({
                 flipBoard={flipBoard}
                 boardSize={size}
                 onPieceClick={onCellClick}
+                isProcessing={isProcessing}
               />
             ))}
 

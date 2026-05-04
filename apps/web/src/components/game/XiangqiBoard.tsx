@@ -63,6 +63,7 @@ export function XiangqiBoard({
   isInCheck,
   lastMove,
   threatenedPieceIds,
+  isProcessing,
 }: {
   board: XiangqiBoardState;
   selectedPieceId: string | null;
@@ -72,6 +73,7 @@ export function XiangqiBoard({
   isInCheck: boolean;
   lastMove: { from: Position; to: Position } | null;
   threatenedPieceIds?: Set<string>;
+  isProcessing?: boolean;
 }) {
   const flip = humanColor === PieceColor.LIGHT;
 
@@ -120,6 +122,8 @@ export function XiangqiBoard({
         flexShrink: 0,
         position: 'relative',
         background: BOARD_COLOR,
+        opacity: isProcessing ? 0.6 : 1,
+        transition: 'opacity 150ms ease',
       }}
     >
       {/* Grid area — single coordinate reference for SVG + HTML */}
@@ -243,7 +247,7 @@ export function XiangqiBoard({
                 width: CELL_SIZE,
                 height: CELL_SIZE,
                 transform: 'translate(-50%, -50%)',
-                cursor: 'pointer',
+                cursor: isProcessing ? 'default' : 'pointer',
                 boxSizing: 'border-box',
               }}
             >
@@ -294,7 +298,7 @@ export function XiangqiBoard({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                cursor: 'pointer',
+                cursor: isProcessing ? 'default' : 'pointer',
                 zIndex: 10,
               }}
             >
