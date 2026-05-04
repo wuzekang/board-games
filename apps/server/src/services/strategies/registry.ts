@@ -2,17 +2,19 @@ import { DraughtsStrategy } from './draughts.strategy';
 import { ChessStrategy } from './chess.strategy';
 import { GomokuStrategy } from './gomoku.strategy';
 import { GoStrategy } from './go.strategy';
-import { ChineseChessStrategy } from './chinese_chess.strategy';
+import { XiangqiStrategy } from './xiangqi.strategy';
 import { LudoStrategy } from './ludo.strategy';
+import { JungleStrategy } from './jungle.strategy';
 import type { GameStrategy } from './interface';
 
 const REGISTRY: Record<string, GameStrategy<any, any>> = {
   draughts: new DraughtsStrategy(10),
   chess: new ChessStrategy(),
-  chinese_chess: new ChineseChessStrategy(),
+  xiangqi: new XiangqiStrategy(),
   gomoku: new GomokuStrategy(),
   go: new GoStrategy(),
   ludo: new LudoStrategy(),
+  jungle: new JungleStrategy(),
 };
 
 export function getStrategy(gameType: string, boardSize?: number): GameStrategy<any, any> {

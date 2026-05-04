@@ -3,28 +3,7 @@ import { PieceColor } from '@board-games/shared';
 import type { GoBoardState, GoStone, GoBoardSize } from '@board-games/shared/go';
 import { STAR_POINTS } from '@board-games/shared/go';
 
-const PADDING = 36;
-const STONE_RADIUS = 17;
-
 const GO_COL_LETTERS = 'ABCDEFGHJKLMNOPQRST';
-
-function getCellSize(size: number): number {
-  return size === 19 ? 32 : 40;
-}
-
-function getSvgSize(size: number): number {
-  return PADDING * 2 + (size - 1) * getCellSize(size);
-}
-
-function toSvg(row: number, col: number, boardSize: number, flip: boolean) {
-  const cellSize = getCellSize(boardSize);
-  const dr = flip ? boardSize - 1 - row : row;
-  const dc = flip ? boardSize - 1 - col : col;
-  return {
-    x: PADDING + dc * cellSize,
-    y: PADDING + dr * cellSize,
-  };
-}
 
 export function GoBoard({
   board,
@@ -42,11 +21,7 @@ export function GoBoard({
   isFinished: boolean;
 }) {
   const { size } = board;
-  const cellSize = getCellSize(size);
-  const SVG_SIZE = getSvgSize(size);
   const flip = humanColor === PieceColor.LIGHT;
-  const stoneRadius = size === 19 ? 14 : STONE_RADIUS;
-
   const stoneMap = new Map<string, GoStone>();
   for (const s of board.stones) {
     stoneMap.set(`${s.position.row},${s.position.col}`, s);
@@ -55,132 +30,160 @@ export function GoBoard({
   const starPoints = STAR_POINTS[size as GoBoardSize] || [];
   const canInteract = isHumanTurn && !isFinished;
 
+  const gridSvgSize = size - 1;
+
+  const cells: { row: number; col: number }[] = [];
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      cells.push({ row: r, col: c });
+    }
+  }
+
+  const labels = Array.from({ length: size }, (_, i) => {
+    const rowNum = flip ? i + 1 : size - i;
+    const colChar = flip ? GO_COL_LETTERS[size - 1 - i] : GO_COL_LETTERS[i];
+    const dr = flip ? size - 1 - i : i;
+    const dc = flip ? size - 1 - i : i;
+    return { rowNum, colChar, dr, dc, i };
+  });
+
   return (
-    <svg
-      viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
-      className="max-w-full h-auto rounded-xl shadow-md"
+    <div
+      className="rounded-xl shadow-md overflow-hidden"
+      style={{ width: '100%', maxHeight: '100%', aspectRatio: '1 / 1', flexShrink: 0, position: 'relative', background: '#DCB468' }}
     >
-      <defs>
-        <radialGradient id="go-black-stone" cx="38%" cy="32%" r="62%">
-          <stop offset="0%" stopColor="#2c2520" />
-          <stop offset="35%" stopColor="#1a1612" />
-          <stop offset="100%" stopColor="#12100d" />
-        </radialGradient>
-        <radialGradient id="go-white-stone" cx="38%" cy="32%" r="62%">
-          <stop offset="0%" stopColor="#f5f0e8" />
-          <stop offset="45%" stopColor="#e8dcc8" />
-          <stop offset="100%" stopColor="#d4c4a8" />
-        </radialGradient>
-        <filter id="go-stone-shadow">
-          <feDropShadow dx="0" dy={size === 19 ? 1 : 1.5} stdDeviation={size === 19 ? 0.8 : 1.5} floodColor="#000" floodOpacity="0.35" />
-        </filter>
-      </defs>
-      <rect width={SVG_SIZE} height={SVG_SIZE} fill="#DCB468" rx={8} />
+      <svg
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}
+        viewBox={`0 0 ${gridSvgSize} ${gridSvgSize}`}
+        preserveAspectRatio="none"
+      >
+        {Array.from({ length: size }, (_, i) => {
+          const y = flip ? gridSvgSize - i : i;
+          return <line key={`h${i}`} x1={0} y1={y} x2={gridSvgSize} y2={y} stroke="#8B6914" strokeWidth={0.04} />;
+        })}
+        {Array.from({ length: size }, (_, i) => {
+          const x = flip ? gridSvgSize - i : i;
+          return <line key={`v${i}`} x1={x} y1={0} x2={x} y2={gridSvgSize} stroke="#8B6914" strokeWidth={0.04} />;
+        })}
 
-      {Array.from({ length: size }, (_, i) => {
-        const { x: x0, y: y0 } = toSvg(i, 0, size, flip);
-        const { x: x1, y: y1 } = toSvg(i, size - 1, size, flip);
-        return <line key={`h${i}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#8B6914" strokeWidth={0.8} />;
-      })}
-      {Array.from({ length: size }, (_, i) => {
-        const { x: x0, y: y0 } = toSvg(0, i, size, flip);
-        const { x: x1, y: y1 } = toSvg(size - 1, i, size, flip);
-        return <line key={`v${i}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#8B6914" strokeWidth={0.8} />;
-      })}
+        {starPoints.map((p) => {
+          const cx = flip ? gridSvgSize - p.col : p.col;
+          const cy = flip ? gridSvgSize - p.row : p.row;
+          return <circle key={`star-${p.row}-${p.col}`} cx={cx} cy={cy} r={size === 19 ? 0.12 : 0.15} fill="#8B6914" />;
+        })}
+      </svg>
 
-      {starPoints.map((p) => {
-        const { x, y } = toSvg(p.row, p.col, size, flip);
-        return <circle key={`star-${p.row}-${p.col}`} cx={x} cy={y} r={3} fill="#8B6914" />;
-      })}
+      {labels.map(({ rowNum, colChar, dr, dc, i }) => (
+        <div key={`lbl-${i}`} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2 }}>
+          <span
+            style={{
+              position: 'absolute',
+              left: `${((dc + 0.5) / size) * 100}%`,
+              bottom: `${(((size - 1) - dr) / size) * 100 + (100 / size) * 0.45}%`,
+              transform: 'translate(-50%, 50%)',
+              fontSize: size === 19 ? 'max(0.55rem, 0.7vw)' : 'max(0.6rem, 0.85vw)',
+              color: '#8b7355',
+              userSelect: 'none',
+              lineHeight: 1,
+            }}
+          >
+            {colChar}
+          </span>
+          <span
+            style={{
+              position: 'absolute',
+              left: `${(100 / size) * 0.45}%`,
+              top: `${((dr + 0.5) / size) * 100}%`,
+              transform: 'translate(-50%, -50%)',
+              fontSize: size === 19 ? 'max(0.55rem, 0.7vw)' : 'max(0.6rem, 0.85vw)',
+              color: '#8b7355',
+              userSelect: 'none',
+              lineHeight: 1,
+            }}
+          >
+            {rowNum}
+          </span>
+        </div>
+      ))}
 
-      {Array.from({ length: size }, (_, row) =>
-        Array.from({ length: size }, (_, col) => {
+      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+        {cells.map(({ row, col }) => {
           const key = `${row},${col}`;
-          const { x, y } = toSvg(row, col, size, flip);
-          if (stoneMap.has(key)) {
-            return (
-              <rect
-                key={`click-${key}`}
-                x={x - cellSize / 2}
-                y={y - cellSize / 2}
-                width={cellSize}
-                height={cellSize}
-                fill="transparent"
-                style={{ cursor: 'default' }}
-              />
-            );
-          }
+          const isOccupied = stoneMap.has(key);
+          const dr = flip ? size - 1 - row : row;
+          const dc = flip ? size - 1 - col : col;
+
           return (
-            <rect
-              key={`click-${key}`}
-              x={x - cellSize / 2}
-              y={y - cellSize / 2}
-              width={cellSize}
-              height={cellSize}
-              fill="transparent"
-              onClick={() => onIntersectionClick({ row, col })}
-              style={{ cursor: canInteract ? 'pointer' : 'default' }}
+            <div
+              key={key}
+              onClick={isOccupied || !canInteract ? undefined : () => onIntersectionClick({ row, col })}
+              style={{
+                position: 'absolute',
+                left: `${(dc / size) * 100}%`,
+                top: `${(dr / size) * 100}%`,
+                width: `${100 / size}%`,
+                height: `${100 / size}%`,
+                cursor: isOccupied ? 'default' : canInteract ? 'pointer' : 'default',
+                boxSizing: 'border-box',
+              }}
             />
           );
-        }),
-      )}
+        })}
 
-      {board.stones.map((stone) => {
-        const { x, y } = toSvg(stone.position.row, stone.position.col, size, flip);
-        const isLast = lastMove?.row === stone.position.row && lastMove?.col === stone.position.col;
-        const isDark = stone.color === PieceColor.DARK;
+        {board.stones.map((stone) => {
+          const dr = flip ? size - 1 - stone.position.row : stone.position.row;
+          const dc = flip ? size - 1 - stone.position.col : stone.position.col;
+          const isLast = lastMove?.row === stone.position.row && lastMove?.col === stone.position.col;
+          const isDark = stone.color === PieceColor.DARK;
 
-        return (
-          <g key={stone.id} className="animate-stone-drop" style={{ filter: 'url(#go-stone-shadow)' }}>
-            {isDark ? (
-              <circle cx={x} cy={y} r={stoneRadius} fill="url(#go-black-stone)" />
-            ) : (
-              <circle cx={x} cy={y} r={stoneRadius} fill="url(#go-white-stone)" stroke="#999" strokeWidth={0.5} />
-            )}
-            <ellipse
-              cx={x - stoneRadius * 0.18}
-              cy={y - stoneRadius * 0.22}
-              rx={stoneRadius * 0.38}
-              ry={stoneRadius * 0.22}
-              fill={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.45)'}
-            />
-            {isLast && (
-              <circle cx={x} cy={y} r={size === 19 ? 3 : 4} fill={isDark ? '#fff' : '#ef4444'} />
-            )}
-          </g>
-        );
-      })}
-
-      {Array.from({ length: size }, (_, i) => {
-        const rowNum = flip ? i + 1 : size - i;
-        const colChar = flip ? GO_COL_LETTERS[size - 1 - i] : GO_COL_LETTERS[i];
-        const { y: yLabel } = toSvg(i, 0, size, flip);
-        const { x: xLabel } = toSvg(0, i, size, flip);
-        return (
-          <g key={`lbl-${i}`}>
-            <text
-              x={PADDING - 18}
-              y={yLabel}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontSize={9}
-              fill="#8b7355"
+          return (
+            <div
+              key={stone.id}
+              style={{
+                position: 'absolute',
+                left: `${(dc / size) * 100}%`,
+                top: `${(dr / size) * 100}%`,
+                width: `${100 / size}%`,
+                height: `${100 / size}%`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 10,
+                pointerEvents: 'none',
+              }}
             >
-              {rowNum}
-            </text>
-            <text
-              x={xLabel}
-              y={SVG_SIZE - PADDING + 18}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontSize={9}
-              fill="#8b7355"
-            >
-              {colChar}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+              <div
+                style={{
+                  width: '88%',
+                  height: '88%',
+                  borderRadius: '50%',
+                  position: 'relative',
+                  background: isDark
+                    ? 'radial-gradient(circle at 38% 32%, #2c2520 0%, #1a1612 35%, #12100d 100%)'
+                    : 'radial-gradient(circle at 38% 32%, #f5f0e8 0%, #e8dcc8 45%, #d4c4a8 100%)',
+                  border: isDark ? 'none' : '0.5px solid #999',
+                  boxShadow: `0 ${size === 19 ? '1' : '1.5'}px ${size === 19 ? '1' : '2'}px rgba(0,0,0,0.35)`,
+                }}
+              >
+                {isLast && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: '50%',
+                      top: '50%',
+                      width: '22%',
+                      height: '22%',
+                      borderRadius: '50%',
+                      background: isDark ? '#fff' : '#ef4444',
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

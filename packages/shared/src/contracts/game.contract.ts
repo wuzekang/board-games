@@ -28,7 +28,7 @@ export const ChessMoveSchema = z.object({
   rookId: z.string().nullable(),
 });
 
-export const ChineseChessMoveSchema = z.object({
+export const XiangqiMoveSchema = z.object({
   pieceId: z.string(),
   from: PositionSchema,
   to: PositionSchema,
@@ -64,9 +64,17 @@ export const LudoMoveSchema = z.object({
   reachedGoal: z.boolean(),
 });
 
+export const JungleMoveSchema = z.object({
+  pieceId: z.string(),
+  from: PositionSchema,
+  to: PositionSchema,
+  type: z.enum(['normal', 'capture']),
+  capturedPieceId: z.string().nullable(),
+});
+
 export const GameResponseSchema = z.object({
   id: z.string(),
-  gameType: z.enum(['draughts', 'chinese_chess', 'chess', 'gomoku', 'go', 'ludo']),
+  gameType: z.enum(['draughts', 'xiangqi', 'chess', 'gomoku', 'go', 'ludo', 'jungle']),
   status: z.enum(['in_progress', 'finished', 'abandoned']),
   currentPlayer: z.enum(['human', 'ai']),
   boardState: z.string(),
@@ -90,7 +98,7 @@ export const MoveRecordSchema = z.object({
   promotionTo: z.string().nullable(),
 });
 
-const MoveUnion = z.union([MoveSchema, ChessMoveSchema, ChineseChessMoveSchema, GomokuMoveSchema, GoMoveSchema, LudoMoveSchema]);
+const MoveUnion = z.union([MoveSchema, ChessMoveSchema, XiangqiMoveSchema, GomokuMoveSchema, GoMoveSchema, LudoMoveSchema, JungleMoveSchema]);
 
 const makeMoveOutputSchema = z.object({
   game: GameResponseSchema,
@@ -115,15 +123,16 @@ export type MakeMoveOutput = z.infer<typeof makeMoveOutputSchema>;
 export type RollDiceOutput = z.infer<typeof rollDiceOutputSchema>;
 export type ContractMove = z.infer<typeof MoveSchema>;
 export type ContractChessMove = z.infer<typeof ChessMoveSchema>;
-export type ContractChineseChessMove = z.infer<typeof ChineseChessMoveSchema>;
+export type ContractXiangqiMove = z.infer<typeof XiangqiMoveSchema>;
 export type ContractGomokuMove = z.infer<typeof GomokuMoveSchema>;
 export type ContractGoMove = z.infer<typeof GoMoveSchema>;
 export type ContractLudoMove = z.infer<typeof LudoMoveSchema>;
+export type ContractJungleMove = z.infer<typeof JungleMoveSchema>;
 
 export const contract = {
   createGame: oc
     .input(z.object({
-      gameType: z.enum(['draughts', 'draughts_100', 'draughts_64', 'chinese_chess', 'chess', 'gomoku', 'go', 'ludo']).default('draughts'),
+      gameType: z.enum(['draughts', 'xiangqi', 'chess', 'gomoku', 'go', 'ludo', 'jungle']).default('draughts'),
       boardSize: z.union([z.literal(10), z.literal(8), z.literal(19), z.literal(13), z.literal(9), z.literal(15)]).optional(),
       difficulty: z.enum(['easy', 'medium', 'hard']).default('medium'),
       humanColor: z.enum(['dark', 'light']).default('dark'),

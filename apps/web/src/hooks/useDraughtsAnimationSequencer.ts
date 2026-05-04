@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { PieceType } from '@board-games/shared';
 import type { BoardState } from '@board-games/shared';
 import type { DraughtsAnimationFrame, DraughtsAnimationState } from '../types/draughtsAnimation';
 
@@ -10,6 +11,7 @@ export function useDraughtsAnimationSequencer() {
     frames: DraughtsAnimationFrame[];
     index: number;
     onComplete: () => void;
+    onFrame?: (frame: DraughtsAnimationFrame) => void;
   } | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -18,7 +20,6 @@ export function useDraughtsAnimationSequencer() {
     if (!seq) return;
 
     if (seq.index >= seq.frames.length) {
-      setAnimState(null);
       seqRef.current = null;
       seq.onComplete();
       return;
@@ -26,6 +27,7 @@ export function useDraughtsAnimationSequencer() {
 
     const frame = seq.frames[seq.index];
     seq.index++;
+    seq.onFrame?.(frame);
 
     if (frame.type === 'move') {
       setAnimState((prev) => {
@@ -95,7 +97,13 @@ export function useDraughtsAnimationSequencer() {
           if (!prev) return prev;
           const next = new Set(prev.promotingPieceIds);
           next.delete(frame.pieceId);
-          return { ...prev, promotingPieceIds: next };
+          const nextBoard = {
+            ...prev.boardSnapshot,
+            pieces: prev.boardSnapshot.pieces.map((p) =>
+              p.id === frame.pieceId ? { ...p, type: PieceType.KING } : p,
+            ),
+          };
+          return { ...prev, promotingPieceIds: next, boardSnapshot: nextBoard };
         });
         processNextFrame();
       }, frame.duration);
@@ -103,7 +111,7 @@ export function useDraughtsAnimationSequencer() {
   }, []);
 
   const runSequence = useCallback(
-    (frames: DraughtsAnimationFrame[], boardSnapshot: BoardState, onComplete: () => void) => {
+    (frames: DraughtsAnimationFrame[], boardSnapshot: BoardState, onComplete: () => void, onFrame?: (frame: DraughtsAnimationFrame) => void) => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
@@ -114,7 +122,7 @@ export function useDraughtsAnimationSequencer() {
         promotingPieceIds: new Set(),
         removedPieceIds: new Set(),
       });
-      seqRef.current = { frames, index: 0, onComplete };
+      seqRef.current = { frames, index: 0, onComplete, onFrame };
       timeoutRef.current = setTimeout(() => processNextFrame(), 0);
     },
     [processNextFrame],
@@ -128,5 +136,9 @@ export function useDraughtsAnimationSequencer() {
     };
   }, []);
 
-  return { animState, runSequence };
+  const clearAnim = useCallback(() => {
+    setAnimState(null);
+  }, []);
+
+  return { animState, runSequence, clearAnim };
 }

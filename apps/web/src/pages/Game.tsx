@@ -1,35 +1,40 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { orpc } from '../orpc-client';
 import { addToast } from '../hooks/useToast';
 import { Board } from '../components/game/Board';
 import { ChessBoard } from '../components/game/ChessBoard';
-import { ChineseChessBoard } from '../components/game/ChineseChessBoard';
+import { XiangqiBoard } from '../components/game/XiangqiBoard';
 import { GomokuBoard } from '../components/game/GomokuBoard';
 import { GoBoard } from '../components/game/GoBoard';
 import { LudoBoard } from '../components/game/LudoBoard';
+import { JungleBoard } from '../components/game/JungleBoard';
 import { LudoDicePanel } from '../components/game/LudoDicePanel';
 import { PromotionDialog } from '../components/game/PromotionDialog';
+import { GameResultOverlay } from '../components/game/GameResultOverlay';
 import { GameStatus } from '../components/game/GameStatus';
 import { GameControls } from '../components/game/GameControls';
 import { MoveHistory } from '../components/game/MoveHistory';
 import type { BoardState, Position } from '@board-games/shared';
 import { PieceColor } from '@board-games/shared';
 import type { ChessBoardState } from '@board-games/shared/chess';
-import type { ChineseChessBoardState } from '@board-games/shared/chinese_chess';
+import type { XiangqiBoardState } from '@board-games/shared/xiangqi';
 import type { GomokuBoardState } from '@board-games/shared/gomoku';
 import type { GoBoardState } from '@board-games/shared/go';
 import type { LudoBoardState } from '@board-games/shared/ludo';
+import type { JungleBoardState } from '@board-games/shared/jungle';
 import type { DraughtsAnimationState } from '../types/draughtsAnimation';
 import { useDraughtsGame } from '../hooks/useDraughtsGame';
 import { useChessGame } from '../hooks/useChessGame';
-import { useChineseChessGame } from '../hooks/useChineseChessGame';
+import { useXiangqiGame } from '../hooks/useXiangqiGame';
 import { useGomokuGame } from '../hooks/useGomokuGame';
 import { useGoGame } from '../hooks/useGoGame';
 import { useLudoGame } from '../hooks/useLudoGame';
+import { useJungleGame } from '../hooks/useJungleGame';
+import { playSound } from '../utils/sounds';
 
-type AnyBoard = BoardState | ChessBoardState | ChineseChessBoardState | GomokuBoardState | GoBoardState | LudoBoardState;
+type AnyBoard = BoardState | ChessBoardState | XiangqiBoardState | GomokuBoardState | GoBoardState | LudoBoardState | JungleBoardState;
 
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -45,8 +50,10 @@ export function Game() {
 
   const undoMutation = useMutation({
     mutationFn: () => orpc.undoMove({ gameId: gameId! }),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      queryClient.setQueryData(['game', gameId], data);
       queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+      queryClient.invalidateQueries({ queryKey: ['moveHistory', gameId] });
     },
     onError: () => {
       addToast('悔棋失败，请重试');
@@ -63,19 +70,21 @@ export function Game() {
     },
   });
 
-  const isChineseChess = game?.gameType === 'chinese_chess';
+  const isXiangqi = game?.gameType === 'xiangqi';
   const isChess = game?.gameType === 'chess';
   const isGomoku = game?.gameType === 'gomoku';
   const isGo = game?.gameType === 'go';
   const isLudo = game?.gameType === 'ludo';
+  const isJungle = game?.gameType === 'jungle';
 
   const titleMap: Record<string, string> = {
     draughts: '国际跳棋',
-    chinese_chess: '中国象棋',
+    xiangqi: '中国象棋',
     chess: '国际象棋',
     gomoku: '五子棋',
     go: '围棋',
     ludo: '飞行棋',
+    jungle: '斗兽棋',
   };
 
   useEffect(() => {
@@ -84,9 +93,10 @@ export function Game() {
     }
     return () => { document.title = '棋趣乐园'; };
   }, [game?.gameType]);
-  const board: AnyBoard | null = game
-    ? (JSON.parse(game.boardState) as AnyBoard)
-    : null;
+  const board: AnyBoard | null = useMemo(
+    () => (game ? (JSON.parse(game.boardState) as AnyBoard) : null),
+    [game?.boardState],
+  );
   const humanColor: PieceColor = game?.humanColor === 'dark' ? PieceColor.DARK : PieceColor.LIGHT;
   const isHumanTurn = game?.currentPlayer === 'human';
   const isFinished = game?.status === 'finished';
@@ -94,7 +104,7 @@ export function Game() {
 
   const draughts = useDraughtsGame(
     gameId,
-    !isChineseChess && !isChess && !isGomoku && !isGo && !isLudo ? (board as BoardState) : null,
+    !isXiangqi && !isChess && !isGomoku && !isGo && !isLudo && !isJungle ? (board as BoardState) : null,
     humanColor,
     isHumanTurn,
     isFinished,
@@ -108,9 +118,9 @@ export function Game() {
     isFinished,
   );
 
-  const chineseChess = useChineseChessGame(
+  const xiangqi = useXiangqiGame(
     gameId,
-    isChineseChess ? (board as ChineseChessBoardState) : null,
+    isXiangqi ? (board as XiangqiBoardState) : null,
     humanColor,
     isHumanTurn,
     isFinished,
@@ -139,6 +149,32 @@ export function Game() {
     isFinished,
   );
 
+  const jungle = useJungleGame(
+    gameId,
+    isJungle ? (board as JungleBoardState) : null,
+    humanColor,
+    isHumanTurn,
+    isFinished,
+  );
+
+  const hasPlayedGameEndSoundRef = useRef(false);
+
+  useEffect(() => {
+    if (!isFinished || hasPlayedGameEndSoundRef.current) return;
+    hasPlayedGameEndSoundRef.current = true;
+    if (isDraw) {
+      playSound('draw');
+    } else if (game.winner === 'human') {
+      playSound('win');
+    } else {
+      playSound('lose');
+    }
+  }, [isFinished, isDraw, game?.winner]);
+
+  useEffect(() => {
+    hasPlayedGameEndSoundRef.current = false;
+  }, [gameId]);
+
   if (isLoading || !game || !board) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -147,7 +183,7 @@ export function Game() {
     );
   }
 
-  const colorLabel = isChineseChess
+  const colorLabel = isXiangqi
     ? humanColor === PieceColor.DARK ? '红方' : '黑方'
     : isGo
       ? humanColor === PieceColor.DARK ? '黑棋' : '白棋'
@@ -157,7 +193,9 @@ export function Game() {
           ? humanColor === PieceColor.LIGHT ? '白方' : '黑方'
           : isLudo
             ? '红方'
-            : humanColor === PieceColor.DARK ? '深色' : '浅色';
+            : isJungle
+              ? humanColor === PieceColor.DARK ? '红方' : '蓝方'
+              : humanColor === PieceColor.DARK ? '深色' : '浅色';
 
   const gameResult = isFinished
     ? isGo && go.goScore
@@ -185,11 +223,11 @@ export function Game() {
           : 'AI 赢了，再试一次！'
     : null;
 
-  const isProcessing = draughts.isPending || chess.isPending || chineseChess.isPending || gomoku.isPending || go.isPending || ludo.isPending || undoMutation.isPending;
+  const isProcessing = draughts.isPending || chess.isPending || xiangqi.isPending || gomoku.isPending || go.isPending || ludo.isPending || jungle.isPending || undoMutation.isPending;
 
   return (
-    <div className="mx-auto max-w-6xl animate-fade-in px-3 py-3 sm:px-4 sm:py-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-5">
+    <div className="mx-auto flex h-full max-w-7xl animate-fade-in px-2 py-2 sm:px-3 sm:py-3">
+      <div className="flex flex-1 flex-col gap-4 lg:flex-row lg:items-start lg:gap-5 min-w-0">
         <div className="flex flex-1 flex-col items-center gap-3 min-w-0">
           <GameStatus
             currentTurn={game.currentPlayer}
@@ -199,7 +237,7 @@ export function Game() {
             isThinking={isProcessing && game.currentPlayer === 'human'}
             customResult={gameResult}
             colorLabel={colorLabel}
-            isInCheck={chess.isInCheck || chineseChess.isInCheck}
+            isInCheck={chess.isInCheck || xiangqi.isInCheck}
           />
           {isLudo && (
             <LudoDicePanel
@@ -213,7 +251,7 @@ export function Game() {
           )}
           {isGo ? (
             <GoBoard
-              board={board as GoBoardState}
+              board={go.localBoard ?? (board as GoBoardState)}
               onIntersectionClick={go.handleIntersectionClick}
               humanColor={humanColor}
               isHumanTurn={isHumanTurn}
@@ -222,7 +260,7 @@ export function Game() {
             />
           ) : isGomoku ? (
             <GomokuBoard
-              board={board as GomokuBoardState}
+              board={gomoku.localBoard ?? (board as GomokuBoardState)}
               onIntersectionClick={gomoku.handleIntersectionClick}
               humanColor={humanColor}
               isHumanTurn={isHumanTurn}
@@ -230,47 +268,64 @@ export function Game() {
               winningLine={gomoku.winningLine}
               isFinished={isFinished}
             />
-          ) : isChineseChess ? (
-            <ChineseChessBoard
-              board={board as ChineseChessBoardState}
-              selectedPieceId={chineseChess.selectedPieceId}
-              validMoves={chineseChess.validMoves}
-              onCellClick={chineseChess.handleCellClick}
+          ) : isXiangqi ? (
+            <XiangqiBoard
+              board={xiangqi.localBoard ?? (board as XiangqiBoardState)}
+              selectedPieceId={xiangqi.selectedPieceId}
+              validMoves={xiangqi.validMoves}
+              onCellClick={xiangqi.handleCellClick}
               humanColor={humanColor}
-              isInCheck={chineseChess.isInCheck}
-              lastMove={chineseChess.lastMove}
+              isInCheck={xiangqi.isInCheck}
+              lastMove={xiangqi.lastMove}
             />
           ) : isChess ? (
             <ChessBoard
-              board={board as ChessBoardState}
+              board={chess.localBoard ?? (board as ChessBoardState)}
               selectedPieceId={chess.selectedPieceId}
               validMoves={chess.validMoves}
               onCellClick={chess.handleCellClick}
               humanColor={humanColor}
               isInCheck={chess.isInCheck}
               lastMove={chess.lastMove}
+              threatenedPieceIds={chess.threatenedPieceIds}
             />
           ) : isLudo ? (
             <LudoBoard
-              board={board as LudoBoardState}
+              board={ludo.localBoard ?? (board as LudoBoardState)}
               phase={ludo.phase}
               onPieceClick={ludo.handlePieceClick}
             />
+          ) : isJungle ? (
+            <JungleBoard
+              board={jungle.localBoard ?? (board as JungleBoardState)}
+              selectedPieceId={jungle.selectedPieceId}
+              validMoves={jungle.validMoves}
+              onCellClick={jungle.handleCellClick}
+              humanColor={humanColor}
+              lastMove={jungle.lastMove}
+              isFinished={isFinished}
+            />
           ) : (
             <>
-              {draughts.forcedCaptureHint && (
-                <p className="mb-1 text-center text-xs font-extrabold text-warm-600 animate-wiggle" style={{ fontFamily: 'var(--font-display)' }}>
-                  {draughts.forcedCaptureHint}
-                </p>
-              )}
+              <div className="h-7 mb-1 flex items-center justify-center">
+                {draughts.forcedCaptureHint ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs font-bold text-amber-700 animate-wiggle" style={{ fontFamily: 'var(--font-display)' }}>
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+                    {draughts.forcedCaptureHint}
+                  </span>
+                ) : <span className="min-h-[1.75rem]">&nbsp;</span>}
+              </div>
               <Board
-                board={board as BoardState}
+                board={draughts.localBoard ?? (board as BoardState)}
                 selectedPieceId={draughts.selectedPieceId}
                 validTargets={draughts.validTargets}
                 onCellClick={draughts.isAnimating ? () => {} : draughts.handleCellClick}
                 humanColor={humanColor}
                 animState={draughts.animState as DraughtsAnimationState | null}
                 movablePieceIds={draughts.movablePieceIds}
+                hasForcedCapture={draughts.forcedCaptureHint != null}
+                threatenedPieceIds={draughts.threatenedPieceIds}
+                validMoves={draughts.validMoves}
               />
             </>
           )}
@@ -282,11 +337,12 @@ export function Game() {
               onNewGame={() => navigate('/')}
               onUndo={() => {
                 undoMutation.mutate();
-                if (isChineseChess) chineseChess.resetSelection();
+                if (isXiangqi) xiangqi.resetSelection();
                 else if (isChess) chess.resetSelection();
                 else if (isGomoku) gomoku.resetLastMove();
                 else if (isGo) go.resetLastMove();
                 else if (isLudo) { }
+                else if (isJungle) jungle.resetSelection();
                 else draughts.resetSelection();
               }}
               onResign={() => resignMutation.mutate()}
@@ -305,6 +361,16 @@ export function Game() {
           color={humanColor}
           onSelect={chess.handlePromotionSelect}
           onCancel={chess.cancelPromotion}
+        />
+      )}
+
+      {isFinished && (
+        <GameResultOverlay
+          outcome={isDraw ? 'draw' : game.winner === 'human' ? 'win' : 'lose'}
+          resultText={gameResult ?? ''}
+          drawReason={game.drawReason}
+          onNewGame={() => navigate('/')}
+          onHome={() => navigate('/')}
         />
       )}
     </div>

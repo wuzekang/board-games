@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { orpc } from '../orpc-client';
 import { addToast } from './useToast';
 import type { LudoBoardState, AnyLudoMove } from '@board-games/shared/ludo';
-import { getAllValidLudoMoves } from '@board-games/shared/ludo';
+import { applyLudoMove, getAllValidLudoMoves } from '@board-games/shared/ludo';
 import type { ContractLudoMove } from '@board-games/shared/contracts';
 
 type LudoPhase =
@@ -19,28 +19,35 @@ export function useLudoGame(
 ) {
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<LudoPhase>({ type: 'idle' });
+  const [localBoard, setLocalBoard] = useState<LudoBoardState | null>(null);
   const isSubmittingPass = useRef(false);
   const hasMovedThisRoll = useRef(false);
+
+  useEffect(() => {
+    if (board) setLocalBoard(board);
+  }, [board]);
 
   const makeMoveMutation = useMutation({
     mutationFn: (move: AnyLudoMove) =>
       orpc.makeMove({ gameId: gameId!, move: move as ContractLudoMove }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       isSubmittingPass.current = false;
       hasMovedThisRoll.current = true;
       setPhase({ type: 'idle' });
+      if (data.game) queryClient.setQueryData(['game', gameId], data.game);
       queryClient.invalidateQueries({ queryKey: ['game', gameId] });
     },
     onError: () => {
       isSubmittingPass.current = false;
       hasMovedThisRoll.current = true;
       setPhase({ type: 'idle' });
+      if (localBoard && board) setLocalBoard(board);
       queryClient.invalidateQueries({ queryKey: ['game', gameId] });
     },
   });
 
   useEffect(() => {
-    if (!board || !isHumanTurn || isFinished || board.diceValue === null) {
+    if (!localBoard || !isHumanTurn || isFinished || localBoard.diceValue === null) {
       if (!isHumanTurn || isFinished) {
         setPhase({ type: 'idle' });
         isSubmittingPass.current = false;
@@ -50,19 +57,21 @@ export function useLudoGame(
 
     if (hasMovedThisRoll.current) return;
 
-    const validMoves = getAllValidLudoMoves(board, board.currentPlayerIndex, board.diceValue);
+    const validMoves = getAllValidLudoMoves(localBoard, localBoard.currentPlayerIndex, localBoard.diceValue);
 
     if (validMoves.length === 1 && validMoves[0].pieceId === '') {
       if (!isSubmittingPass.current && !makeMoveMutation.isPending) {
         isSubmittingPass.current = true;
         addToast('没有可走的棋，自动跳过');
         setPhase({ type: 'thinking' });
+        const boardBeforeMove = localBoard;
+        setLocalBoard(applyLudoMove(localBoard, validMoves[0]));
         makeMoveMutation.mutate(validMoves[0]);
       }
     } else {
-      setPhase({ type: 'rolled', diceValue: board.diceValue, validMoves });
+      setPhase({ type: 'rolled', diceValue: localBoard.diceValue, validMoves });
     }
-  }, [board, isHumanTurn, isFinished]);
+  }, [localBoard, isHumanTurn, isFinished]);
 
   const rollDiceMutation = useMutation({
     mutationFn: () => orpc.rollDice({ gameId: gameId! }),
@@ -71,6 +80,7 @@ export function useLudoGame(
       const validMoves = (data.validMoves as ContractLudoMove[]).map(
         (m): AnyLudoMove => ({ ...m }),
       );
+      if (data.game) queryClient.setQueryData(['game', gameId], data.game);
       if (validMoves.length === 1 && validMoves[0].pieceId === '') {
         queryClient.invalidateQueries({ queryKey: ['game', gameId] });
         return;
@@ -90,16 +100,23 @@ export function useLudoGame(
 
   const handlePieceClick = useCallback(
     (pieceId: string) => {
-      if (phase.type !== 'rolled') return;
+      if (phase.type !== 'rolled' || !localBoard) return;
       const move = phase.validMoves.find((m) => m.pieceId === pieceId);
       if (!move) return;
       setPhase({ type: 'thinking' });
-      makeMoveMutation.mutate(move);
+      const boardBeforeMove = localBoard;
+      setLocalBoard(applyLudoMove(localBoard, move));
+      makeMoveMutation.mutate(move, {
+        onError: () => {
+          setLocalBoard(boardBeforeMove);
+        },
+      });
     },
-    [phase, makeMoveMutation],
+    [phase, localBoard, makeMoveMutation],
   );
 
   return {
+    localBoard,
     phase,
     isPending: rollDiceMutation.isPending || makeMoveMutation.isPending,
     handleRollDice,

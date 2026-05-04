@@ -1,5 +1,6 @@
 import { PieceColor } from '@board-games/shared';
 import { ChessPieceType } from '@board-games/shared/chess';
+import { playSound } from '../../utils/sounds';
 
 const PROMOTION_CHOICES = [
   { type: ChessPieceType.QUEEN, symbol: { light: '♕', dark: '♛' }, label: '后', emoji: '👑' },
@@ -32,7 +33,7 @@ export function PromotionDialog({
           {PROMOTION_CHOICES.map((choice) => (
             <button
               key={choice.type}
-              onClick={() => onSelect(choice.type)}
+              onClick={() => { playSound('click'); onSelect(choice.type); }}
               className="flex flex-col items-center rounded-2xl py-4 transition-all hover:bg-warm-50 hover:scale-105 active:scale-[0.95] border-2 border-transparent hover:border-warm-300"
             >
               <span className="text-4xl leading-none drop-shadow-sm">{choice.symbol[symbols]}</span>
@@ -43,7 +44,7 @@ export function PromotionDialog({
           ))}
         </div>
         <button
-          onClick={onCancel}
+          onClick={() => { playSound('click'); onCancel(); }}
           className="mt-4 w-full rounded-2xl py-2.5 text-sm font-bold text-warm-400 transition-all hover:text-warm-600 hover:bg-warm-50 active:scale-[0.97]"
         >
           取消

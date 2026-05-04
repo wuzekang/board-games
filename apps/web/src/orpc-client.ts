@@ -6,22 +6,24 @@ import type {
   MoveRecord,
   ContractMove,
   ContractChessMove,
-  ContractChineseChessMove,
+  ContractXiangqiMove,
   ContractGomokuMove,
   ContractGoMove,
   ContractLudoMove,
+  ContractJungleMove,
   RollDiceOutput,
 } from '@board-games/shared/contracts';
 
+const apiUrl = import.meta.env.VITE_API_URL || '/rpc';
 const link = new RPCLink({
-  url: 'http://localhost:3000/rpc',
+  url: apiUrl.startsWith('http') ? apiUrl : `${window.location.origin}${apiUrl}`,
 });
 
-type AnyMove = ContractMove | ContractChessMove | ContractChineseChessMove | ContractGomokuMove | ContractGoMove | ContractLudoMove;
+type AnyMove = ContractMove | ContractChessMove | ContractXiangqiMove | ContractGomokuMove | ContractGoMove | ContractLudoMove | ContractJungleMove;
 
 type OrpcClient = {
   createGame: (input: {
-    gameType?: 'draughts' | 'chinese_chess' | 'chess' | 'gomoku' | 'go' | 'ludo';
+    gameType?: 'draughts' | 'xiangqi' | 'chess' | 'gomoku' | 'go' | 'ludo' | 'jungle';
     boardSize?: 10 | 8 | 19 | 13 | 9 | 15;
     difficulty?: 'easy' | 'medium' | 'hard';
     humanColor?: 'dark' | 'light';

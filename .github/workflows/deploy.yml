@@ -1,0 +1,59 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ec2
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install
+
+      - name: Build
+        run: pnpm build
+
+      - name: Pack artifacts
+        run: |
+          mkdir -p /tmp/deploy/server/migrations /tmp/deploy/web
+          cp apps/server/dist/index.js /tmp/deploy/server/
+          cp -r apps/server/src/db/migrations /tmp/deploy/server/migrations
+          cp -r apps/web/dist /tmp/deploy/web/dist
+          cd /tmp/deploy && tar czf /tmp/deploy.tar.gz .
+
+      - name: Upload to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: /tmp/deploy.tar.gz
+          target: /tmp/
+
+      - name: Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            mkdir -p /home/ubuntu/board-games/server /home/ubuntu/board-games/web
+            cd /home/ubuntu/board-games
+            tar xzf /tmp/deploy.tar.gz
+            rm -f /tmp/deploy.tar.gz
+            cd /home/ubuntu/board-games/server
+            npm install better-sqlite3
+            sudo systemctl restart board-games

@@ -1,0 +1,606 @@
+import {
+  type JungleBoardState,
+  type JunglePiece,
+  type JungleMove,
+  JunglePieceType,
+  JungleMoveType,
+  PieceColor,
+} from '@board-games/shared/jungle';
+import type { Position } from '@board-games/shared';
+import { JUNGLE_PIECE_RANK } from '@board-games/shared/jungle';
+import { posKey } from '@board-games/shared';
+
+const BASE_VALUES: Record<JunglePieceType, number> = {
+  [JunglePieceType.ELEPHANT]: 800,
+  [JunglePieceType.LION]: 700,
+  [JunglePieceType.TIGER]: 600,
+  [JunglePieceType.LEOPARD]: 500,
+  [JunglePieceType.DOG]: 400,
+  [JunglePieceType.WOLF]: 300,
+  [JunglePieceType.CAT]: 200,
+  [JunglePieceType.RAT]: 250,
+};
+
+const LIGHT_DEN: Position = { row: 0, col: 3 };
+const DARK_DEN: Position = { row: 8, col: 3 };
+
+const LIGHT_GUARD_SQUARES: Position[] = [
+  { row: 0, col: 2 },
+  { row: 0, col: 4 },
+  { row: 1, col: 3 },
+];
+const DARK_GUARD_SQUARES: Position[] = [
+  { row: 8, col: 2 },
+  { row: 8, col: 4 },
+  { row: 7, col: 3 },
+];
+
+const LIGHT_GUARD_SET = new Set(LIGHT_GUARD_SQUARES.map((p) => posKey(p)));
+const DARK_GUARD_SET = new Set(DARK_GUARD_SQUARES.map((p) => posKey(p)));
+
+const LIGHT_TRAP_SET = new Set(['0,2', '0,4', '1,3']);
+const DARK_TRAP_SET = new Set(['8,2', '8,4', '7,3']);
+
+const ROWS = 9;
+const COLS = 7;
+
+const ORTHOGONAL = [
+  { dr: -1, dc: 0 },
+  { dr: 1, dc: 0 },
+  { dr: 0, dc: -1 },
+  { dr: 0, dc: 1 },
+];
+
+const RIVER_CELLS = new Set<string>();
+for (let r = 3; r <= 5; r++) {
+  for (const c of [1, 2, 4, 5]) {
+    RIVER_CELLS.add(`${r},${c}`);
+  }
+}
+
+function isRiver(pos: Position): boolean {
+  return RIVER_CELLS.has(`${pos.row},${pos.col}`);
+}
+
+function inBounds(pos: Position): boolean {
+  return pos.row >= 0 && pos.row < ROWS && pos.col >= 0 && pos.col < COLS;
+}
+
+function manhattan(a: Position, b: Position): number {
+  return Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
+}
+
+type DistMap = number[][];
+
+function newDistMap(): DistMap {
+  const map: DistMap = [];
+  for (let r = 0; r < ROWS; r++) {
+    map[r] = new Array(COLS).fill(999);
+  }
+  return map;
+}
+
+function bfsLand(from: Position): DistMap {
+  const dist = newDistMap();
+  const queue: Position[] = [from];
+  dist[from.row][from.col] = 0;
+  let qi = 0;
+  while (qi < queue.length) {
+    const cur = queue[qi++];
+    const d = dist[cur.row][cur.col];
+    for (const dir of ORTHOGONAL) {
+      const nr = cur.row + dir.dr;
+      const nc = cur.col + dir.dc;
+      if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+      if (isRiver({ row: nr, col: nc })) continue;
+      if (dist[nr][nc] <= d + 1) continue;
+      dist[nr][nc] = d + 1;
+      queue.push({ row: nr, col: nc });
+    }
+  }
+  return dist;
+}
+
+function bfsRat(from: Position): DistMap {
+  const dist = newDistMap();
+  const queue: Position[] = [from];
+  dist[from.row][from.col] = 0;
+  let qi = 0;
+  while (qi < queue.length) {
+    const cur = queue[qi++];
+    const d = dist[cur.row][cur.col];
+    for (const dir of ORTHOGONAL) {
+      const nr = cur.row + dir.dr;
+      const nc = cur.col + dir.dc;
+      if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+      if (dist[nr][nc] <= d + 1) continue;
+      dist[nr][nc] = d + 1;
+      queue.push({ row: nr, col: nc });
+    }
+  }
+  return dist;
+}
+
+function bfsLionTiger(from: Position): DistMap {
+  const dist = newDistMap();
+  const queue: Position[] = [from];
+  dist[from.row][from.col] = 0;
+  let qi = 0;
+  while (qi < queue.length) {
+    const cur = queue[qi++];
+    const d = dist[cur.row][cur.col];
+    for (const dir of ORTHOGONAL) {
+      let nr = cur.row + dir.dr;
+      let nc = cur.col + dir.dc;
+      if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+      if (isRiver({ row: nr, col: nc })) {
+        while (inBounds({ row: nr, col: nc }) && isRiver({ row: nr, col: nc })) {
+          nr += dir.dr;
+          nc += dir.dc;
+        }
+        if (!inBounds({ row: nr, col: nc })) continue;
+        if (dist[nr][nc] <= d + 1) continue;
+        dist[nr][nc] = d + 1;
+        queue.push({ row: nr, col: nc });
+      } else {
+        if (dist[nr][nc] <= d + 1) continue;
+        dist[nr][nc] = d + 1;
+        queue.push({ row: nr, col: nc });
+      }
+    }
+  }
+  return dist;
+}
+
+function getDistMap(piece: JunglePiece): DistMap {
+  if (piece.type === JunglePieceType.RAT) return bfsRat(piece.position);
+  if (piece.type === JunglePieceType.LION || piece.type === JunglePieceType.TIGER)
+    return bfsLionTiger(piece.position);
+  return bfsLand(piece.position);
+}
+
+const ELEPHANT_PST: number[][] = [
+  [ 0, 10, 15, 25, 15, 10,  0],
+  [10, 15, 25, 30, 25, 15, 10],
+  [10, 20, 25, 30, 25, 20, 10],
+  [ 5, 15, 20, 25, 20, 15,  5],
+  [ 0,  5, 10, 15, 10,  5,  0],
+  [-5,  0,  5, 10,  5,  0, -5],
+  [-5, -5,  0,  5,  0, -5, -5],
+  [-10, -5, -5,  0, -5, -5, -10],
+  [-10,-10,  0, -5,  0,-10, -10],
+];
+
+const LION_PST: number[][] = [
+  [ 0,  5, 10, 15, 10,  5,  0],
+  [ 5, 10, 15, 20, 15, 10,  5],
+  [ 5, 10, 15, 20, 15, 10,  5],
+  [ 0, 20, 20, 20, 20, 20,  0],
+  [ 0, 20, 20, 20, 20, 20,  0],
+  [ 0, 20, 20, 20, 20, 20,  0],
+  [ 0,  5, 10, 10, 10,  5,  0],
+  [ 0,  0,  5,  5,  5,  0,  0],
+  [-5,  0, 10, -5, 10,  0, -5],
+];
+
+const TIGER_PST: number[][] = [
+  [ 0,  5, 10, 15, 10,  5,  0],
+  [ 5, 10, 15, 20, 15, 10,  5],
+  [ 5, 10, 15, 20, 15, 10,  5],
+  [ 0, 20, 20, 20, 20, 20,  0],
+  [ 0, 20, 20, 20, 20, 20,  0],
+  [ 0, 20, 20, 20, 20, 20,  0],
+  [ 0,  5, 10, 10, 10,  5,  0],
+  [ 0,  0,  5,  5,  5,  0,  0],
+  [-5,  0, 10, -5, 10,  0, -5],
+];
+
+const LEOPARD_PST: number[][] = [
+  [ 0,  5, 10, 15, 10,  5,  0],
+  [ 5, 10, 15, 20, 15, 10,  5],
+  [ 5, 10, 15, 20, 15, 10,  5],
+  [ 0, 10, 15, 15, 15, 10,  0],
+  [ 0,  5, 10, 15, 10,  5,  0],
+  [ 0,  0,  5, 10,  5,  0,  0],
+  [-5,  0,  0,  5,  0,  0, -5],
+  [-5, -5, -5,  0, -5, -5, -5],
+  [-10,-10, 0,-10,  0,-10,-10],
+];
+
+const DOG_PST: number[][] = [
+  [ 0,  5,  8, 10,  8,  5,  0],
+  [ 5,  8, 10, 12, 10,  8,  5],
+  [ 5,  8, 10, 15, 10,  8,  5],
+  [ 0,  5,  8, 10,  8,  5,  0],
+  [ 0,  0,  5,  8,  5,  0,  0],
+  [ 0,  0,  0,  5,  0,  0,  0],
+  [-5, -5,  0,  0,  0, -5, -5],
+  [-5, -5, -5,  5, -5, -5, -5],
+  [-10,-10,  5,-10,  5,-10,-10],
+];
+
+const WOLF_PST: number[][] = [
+  [ 0,  5,  8, 10,  8,  5,  0],
+  [ 5,  8, 10, 12, 10,  8,  5],
+  [ 5,  8, 10, 15, 10,  8,  5],
+  [ 0,  5,  8, 10,  8,  5,  0],
+  [ 0,  0,  5,  8,  5,  0,  0],
+  [ 0,  0,  0,  5,  0,  0,  0],
+  [-5, -5,  0,  0,  0, -5, -5],
+  [-5, -5, -5, -5, -5, -5, -5],
+  [-10,-10,-10,-10,-10,-10,-10],
+];
+
+const CAT_PST: number[][] = [
+  [ 0,  3,  5,  8,  5,  3,  0],
+  [ 3,  5,  8, 10,  8,  5,  3],
+  [ 3,  5,  8, 10,  8,  5,  3],
+  [ 0,  3,  5,  8,  5,  3,  0],
+  [ 0,  0,  3,  5,  3,  0,  0],
+  [ 0,  0,  0,  3,  0,  0,  0],
+  [-5, -5,  0,  0,  0, -5, -5],
+  [-5, -5, -5,  5, -5, -5, -5],
+  [ -8, -8,  0, -8,  0, -8, -8],
+];
+
+const RAT_PST: number[][] = [
+  [ 0, 10, 15, 25, 15, 10,  0],
+  [10, 15, 20, 30, 20, 15, 10],
+  [10, 20, 25, 30, 25, 20, 10],
+  [ 0, 35, 35, 15, 35, 35,  0],
+  [ 0, 35, 35, 15, 35, 35,  0],
+  [ 0, 35, 35, 15, 35, 35,  0],
+  [ 0, 10, 10, 15, 10, 10,  0],
+  [-5,  0,  0,  5,  0,  0, -5],
+  [-10,-10,  0, -5,  0,-10,-10],
+];
+
+const PST: Record<JunglePieceType, number[][]> = {
+  [JunglePieceType.ELEPHANT]: ELEPHANT_PST,
+  [JunglePieceType.LION]: LION_PST,
+  [JunglePieceType.TIGER]: TIGER_PST,
+  [JunglePieceType.LEOPARD]: LEOPARD_PST,
+  [JunglePieceType.DOG]: DOG_PST,
+  [JunglePieceType.WOLF]: WOLF_PST,
+  [JunglePieceType.CAT]: CAT_PST,
+  [JunglePieceType.RAT]: RAT_PST,
+};
+
+function getPstValue(piece: JunglePiece): number {
+  const table = PST[piece.type];
+  const row = piece.color === PieceColor.DARK ? piece.position.row : 8 - piece.position.row;
+  const clampedRow = Math.max(0, Math.min(8, row));
+  const col = Math.max(0, Math.min(6, piece.position.col));
+  return table[clampedRow][col];
+}
+
+function counterBonus(board: JungleBoardState, color: PieceColor): number {
+  const opponentColor = color === PieceColor.DARK ? PieceColor.LIGHT : PieceColor.DARK;
+  const hasElephant = (c: PieceColor) =>
+    board.pieces.some((p) => p.type === JunglePieceType.ELEPHANT && p.color === c);
+  const hasRat = (c: PieceColor) =>
+    board.pieces.some((p) => p.type === JunglePieceType.RAT && p.color === c);
+
+  let bonus = 0;
+  if (hasElephant(opponentColor) && hasRat(color)) {
+    bonus += 200;
+  }
+  if (hasElephant(color) && !hasRat(color) && hasRat(opponentColor)) {
+    bonus -= 150;
+  }
+  return bonus;
+}
+
+function trapControlScore(board: JungleBoardState, color: PieceColor): number {
+  const opponentTrapSet = color === PieceColor.DARK ? LIGHT_TRAP_SET : DARK_TRAP_SET;
+  let score = 0;
+
+  for (const piece of board.pieces) {
+    if (piece.color !== color) continue;
+    const key = posKey(piece.position);
+    if (opponentTrapSet.has(key)) score += 100;
+  }
+  return score;
+}
+
+function denProximityScore(board: JungleBoardState, color: PieceColor): number {
+  const opponentColor = color === PieceColor.DARK ? PieceColor.LIGHT : PieceColor.DARK;
+  const opponentDen = opponentColor === PieceColor.DARK ? DARK_DEN : LIGHT_DEN;
+  const ownDen = color === PieceColor.DARK ? DARK_DEN : LIGHT_DEN;
+  let score = 0;
+
+  for (const piece of board.pieces) {
+    const rank = JUNGLE_PIECE_RANK[piece.type];
+    const distMap = getDistMap(piece);
+    if (piece.color === color) {
+      const dist = distMap[opponentDen.row][opponentDen.col];
+      const effectiveDist = Math.min(dist, manhattan(piece.position, opponentDen));
+      score += (12 - effectiveDist) * rank * 3;
+    } else {
+      const dist = distMap[ownDen.row][ownDen.col];
+      const effectiveDist = Math.min(dist, manhattan(piece.position, ownDen));
+      score -= (12 - effectiveDist) * rank * 5;
+    }
+  }
+  return score;
+}
+
+function threatRank(piece: JunglePiece): number {
+  if (piece.type === JunglePieceType.ELEPHANT) return 3;
+  if (piece.type === JunglePieceType.LION || piece.type === JunglePieceType.TIGER) return 2;
+  return 1;
+}
+
+export function denShieldScore(board: JungleBoardState, color: PieceColor): number {
+  const ownDen = color === PieceColor.DARK ? DARK_DEN : LIGHT_DEN;
+  const ownPieces = board.pieces.filter((p) => p.color === color);
+  const enemyPieces = board.pieces.filter((p) => p.color !== color);
+
+  let bestTtG = 99;
+  for (const own of ownPieces) {
+    const dMap = getDistMap(own);
+    const ttg = dMap[ownDen.row][ownDen.col];
+    bestTtG = Math.min(bestTtG, ttg);
+  }
+
+  let score = 0;
+
+  for (const enemy of enemyPieces) {
+    const eDistMap = getDistMap(enemy);
+    const ttd = eDistMap[ownDen.row][ownDen.col];
+    const effectiveTtd = Math.min(ttd, manhattan(enemy.position, ownDen));
+    if (effectiveTtd > 10) continue;
+
+    const gap = effectiveTtd - bestTtG;
+    const tr = threatRank(enemy);
+
+    if (gap <= -2) score -= 20000 * tr;
+    else if (gap === -1) score -= 12000 * tr;
+    else if (gap === 0) score -= 8000 * tr;
+    else if (gap === 1) score -= 4000 * tr;
+    else if (gap === 2) score -= 2000 * tr;
+    else if (gap === 3) score -= 1000 * tr;
+    else if (gap === 4) score -= 500 * tr;
+    else if (gap === 5) score -= 250 * tr;
+    else score -= gap * 80;
+  }
+
+  return score;
+}
+
+export function ratHuntScore(board: JungleBoardState, color: PieceColor): number {
+  const opponentColor = color === PieceColor.DARK ? PieceColor.LIGHT : PieceColor.DARK;
+  const opponentElephants = board.pieces.filter(
+    (p) => p.type === JunglePieceType.ELEPHANT && p.color === opponentColor,
+  );
+  if (opponentElephants.length === 0) return 0;
+
+  const ownRats = board.pieces.filter(
+    (p) => p.type === JunglePieceType.RAT && p.color === color,
+  );
+  if (ownRats.length === 0) return 0;
+
+  let score = 0;
+  for (const rat of ownRats) {
+    for (const ele of opponentElephants) {
+      const dist = manhattan(rat.position, ele.position);
+      if (dist <= 2) score += 150;
+      else if (dist <= 4) score += 80;
+      else if (dist <= 6) score += 30;
+    }
+  }
+  return score;
+}
+
+function isInJumpLane(from: Position, to: Position, pos: Position): boolean {
+  if (from.row === to.row) {
+    const minC = Math.min(from.col, to.col);
+    const maxC = Math.max(from.col, to.col);
+    return pos.row === from.row && pos.col > minC && pos.col < maxC;
+  }
+  if (from.col === to.col) {
+    const minR = Math.min(from.row, to.row);
+    const maxR = Math.max(from.row, to.row);
+    return pos.col === from.col && pos.row > minR && pos.row < maxR;
+  }
+  return false;
+}
+
+function ratRiverBlockScore(board: JungleBoardState, color: PieceColor): number {
+  const opponentColor = color === PieceColor.DARK ? PieceColor.LIGHT : PieceColor.DARK;
+  const ownDen = color === PieceColor.DARK ? DARK_DEN : LIGHT_DEN;
+
+  const enemyJumpers = board.pieces.filter(
+    (p) => p.color === opponentColor &&
+      (p.type === JunglePieceType.LION || p.type === JunglePieceType.TIGER),
+  );
+
+  const ownRats = board.pieces.filter(
+    (p) => p.color === color && p.type === JunglePieceType.RAT && isRiver(p.position),
+  );
+
+  let score = 0;
+
+  for (const jumper of enemyJumpers) {
+    for (const dir of ORTHOGONAL) {
+      let r = jumper.position.row + dir.dr;
+      let c = jumper.position.col + dir.dc;
+      if (!inBounds({ row: r, col: c }) || !isRiver({ row: r, col: c })) continue;
+
+      const from = jumper.position;
+      while (inBounds({ row: r, col: c }) && isRiver({ row: r, col: c })) {
+        r += dir.dr;
+        c += dir.dc;
+      }
+      if (!inBounds({ row: r, col: c })) continue;
+      const landing: Position = { row: r, col: c };
+
+      const distToDen = manhattan(landing, ownDen);
+      if (distToDen > 5) continue;
+
+      const blocked = ownRats.some((rat) => isInJumpLane(from, landing, rat.position));
+      if (blocked) score += 300;
+      else score -= 150;
+    }
+  }
+
+  return score;
+}
+
+export function evaluateJungleBoard(
+  board: JungleBoardState,
+  aiColor: PieceColor,
+): number {
+  const humanColor = aiColor === PieceColor.DARK ? PieceColor.LIGHT : PieceColor.DARK;
+
+  let materialScore = 0;
+  let pstScore = 0;
+
+  for (const piece of board.pieces) {
+    const val = BASE_VALUES[piece.type];
+    const pst = getPstValue(piece);
+    if (piece.color === aiColor) {
+      materialScore += val;
+      pstScore += pst;
+    } else {
+      materialScore -= val;
+      pstScore -= pst;
+    }
+  }
+
+  materialScore += counterBonus(board, aiColor) - counterBonus(board, humanColor);
+
+  const trapScore = trapControlScore(board, aiColor) - trapControlScore(board, humanColor);
+  const denScore = denProximityScore(board, aiColor) - denProximityScore(board, humanColor);
+  const shieldScore = denShieldScore(board, aiColor) - denShieldScore(board, humanColor);
+  const huntScore = ratHuntScore(board, aiColor) - ratHuntScore(board, humanColor);
+  const blockScore = ratRiverBlockScore(board, aiColor) - ratRiverBlockScore(board, humanColor);
+
+  return materialScore + pstScore + trapScore + denScore + shieldScore + huntScore + blockScore;
+}
+
+function computeBestTtD(board: JungleBoardState, color: PieceColor, den: Position): { bestTtD: number; defenderId: string | null } {
+  const ownPieces = board.pieces.filter((p) => p.color === color);
+  let bestTtD = 99;
+  let defenderId: string | null = null;
+
+  for (const own of ownPieces) {
+    const dMap = getDistMap(own);
+    const ttd = dMap[den.row][den.col];
+    if (ttd < bestTtD) {
+      bestTtD = ttd;
+      defenderId = own.id;
+    }
+  }
+
+  return { bestTtD, defenderId };
+}
+
+function closestThreatInfo(board: JungleBoardState, threatColor: PieceColor, den: Position): { minTtD: number; threatId: string | null; threatPos: Position | null } {
+  const threats = board.pieces.filter((p) => p.color === threatColor);
+  let minTtD = 99;
+  let threatId: string | null = null;
+  let threatPos: Position | null = null;
+
+  for (const t of threats) {
+    const dMap = getDistMap(t);
+    const ttd = dMap[den.row][den.col];
+    const effectiveTtd = Math.min(ttd, manhattan(t.position, den));
+    if (effectiveTtd < minTtD) {
+      minTtD = effectiveTtd;
+      threatId = t.id;
+      threatPos = t.position;
+    }
+  }
+
+  return { minTtD, threatId, threatPos };
+}
+
+function isGuardSquare(pos: Position, color: PieceColor): boolean {
+  const guardSet = color === PieceColor.DARK ? DARK_GUARD_SET : LIGHT_GUARD_SET;
+  return guardSet.has(posKey(pos));
+}
+
+export function moveOrderScore(move: JungleMove, board: JungleBoardState, aiColor: PieceColor): number {
+  let score = 0;
+  const humanColor = aiColor === PieceColor.DARK ? PieceColor.LIGHT : PieceColor.DARK;
+  const humanDen = humanColor === PieceColor.DARK ? DARK_DEN : LIGHT_DEN;
+  const aiDen = aiColor === PieceColor.DARK ? DARK_DEN : LIGHT_DEN;
+
+  if (move.to.row === humanDen.row && move.to.col === humanDen.col) return 100000;
+
+  if (move.type === JungleMoveType.CAPTURE) {
+    const captured = board.pieces.find((p) => p.id === move.capturedPieceId);
+    if (captured) score += 10000 + BASE_VALUES[captured.type];
+  }
+
+  const opponentTrapSet = aiColor === PieceColor.DARK ? LIGHT_TRAP_SET : DARK_TRAP_SET;
+  if (opponentTrapSet.has(posKey(move.to))) score += 5000;
+
+  const piece = board.pieces.find((p) => p.id === move.pieceId);
+  if (!piece) return score;
+
+  if (piece.type === JunglePieceType.RAT) {
+    const enemyElephant = board.pieces.find(
+      (p) => p.type === JunglePieceType.ELEPHANT && p.color !== piece.color,
+    );
+    if (enemyElephant) {
+      const distBefore = manhattan(piece.position, enemyElephant.position);
+      const distAfter = manhattan(move.to, enemyElephant.position);
+      if (distAfter < distBefore && distAfter <= 4) score += 3000;
+    }
+  }
+
+  if (piece.color === aiColor) {
+    const { minTtD, threatId, threatPos } = closestThreatInfo(board, humanColor, aiDen);
+
+    if (minTtD <= 8 && threatId) {
+      const { bestTtD } = computeBestTtD(board, aiColor, aiDen);
+      const gap = minTtD - bestTtD;
+
+      if (move.type === JungleMoveType.CAPTURE && move.capturedPieceId === threatId) {
+        score += 20000;
+      }
+
+      const fromIsGuard = isGuardSquare(piece.position, aiColor);
+      const toIsGuard = isGuardSquare(move.to, aiColor);
+
+      if (fromIsGuard && !toIsGuard && gap <= 4) {
+        score -= 8000;
+      }
+
+      if (gap <= 4) {
+        const pieceDistMap = getDistMap(piece);
+        const pieceTtD = pieceDistMap[aiDen.row][aiDen.col];
+        const newDist = manhattan(move.to, aiDen);
+        const newTtD = Math.min(newDist, pieceTtD);
+
+        const otherPieces = board.pieces.filter((p) => p.color === aiColor && p.id !== piece.id);
+        let otherBestTtD = 99;
+        for (const op of otherPieces) {
+          const odMap = getDistMap(op);
+          otherBestTtD = Math.min(otherBestTtD, odMap[aiDen.row][aiDen.col]);
+        }
+        const newGap = minTtD - Math.min(otherBestTtD, newTtD);
+
+        if (newGap < gap && newGap <= 2) {
+          score += 10000;
+        } else if (newGap < gap) {
+          score += 5000;
+        }
+      }
+    }
+
+    const distBefore = manhattan(piece.position, humanDen);
+    const distAfter = manhattan(move.to, humanDen);
+    if (distAfter < distBefore) {
+      score += (distBefore - distAfter) * 50 * JUNGLE_PIECE_RANK[piece.type];
+    }
+  } else {
+    const distBefore = manhattan(piece.position, aiDen);
+    const distAfter = manhattan(move.to, aiDen);
+    if (distAfter < distBefore && distAfter <= 3) score += 2000;
+  }
+
+  return score;
+}

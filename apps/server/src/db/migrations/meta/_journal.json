@@ -15,6 +15,13 @@
       "when": 1777702000000,
       "tag": "0001_chess_support",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1777703000000,
+      "tag": "0002_merge_draughts_types",
+      "breakpoints": true
     }
   ]
 }

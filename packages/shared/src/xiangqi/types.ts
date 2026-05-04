@@ -3,7 +3,7 @@ import { PieceColor } from '../types/board';
 
 export { PieceColor };
 
-export enum ChineseChessPieceType {
+export enum XiangqiPieceType {
   KING = 'king',
   ADVISOR = 'advisor',
   ELEPHANT = 'elephant',
@@ -13,34 +13,34 @@ export enum ChineseChessPieceType {
   PAWN = 'pawn',
 }
 
-export enum ChineseChessMoveType {
+export enum XiangqiMoveType {
   NORMAL = 'normal',
   CAPTURE = 'capture',
 }
 
-export interface ChineseChessPiece {
+export interface XiangqiPiece {
   id: string;
-  type: ChineseChessPieceType;
+  type: XiangqiPieceType;
   color: PieceColor;
   position: Position;
 }
 
-export interface ChineseChessBoardState {
+export interface XiangqiBoardState {
   size: 10;
-  pieces: ChineseChessPiece[];
+  pieces: XiangqiPiece[];
   nextColor: PieceColor;
   halfMoveClock: number;
 }
 
-export interface ChineseChessMove {
+export interface XiangqiMove {
   pieceId: string;
   from: Position;
   to: Position;
-  type: ChineseChessMoveType;
+  type: XiangqiMoveType;
   capturedPieceId: string | null;
 }
 
-export interface ChineseChessGameResult {
+export interface XiangqiGameResult {
   winner: PieceColor | null;
   isDraw: boolean;
   reason?: string;

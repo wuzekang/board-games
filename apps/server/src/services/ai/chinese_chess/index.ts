@@ -1,1 +1,0 @@
-export { ChineseChessAI } from './minimax';

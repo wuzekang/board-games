@@ -1,0 +1,1 @@
+export { XiangqiAI } from './minimax';

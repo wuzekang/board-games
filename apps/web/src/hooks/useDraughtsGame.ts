@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { BoardState, Move, Position } from '@board-games/shared';
 import { PieceColor } from '@board-games/shared';
@@ -7,6 +7,7 @@ import { orpc } from '../orpc-client';
 import { useDraughtsAnimationSequencer } from './useDraughtsAnimationSequencer';
 import { buildDraughtsMoveFrames } from '../types/draughtsAnimation';
 import { addToast } from './useToast';
+import { playSound } from '../utils/sounds';
 
 type SelectionState =
   | { type: 'idle' }
@@ -22,8 +23,15 @@ export function useDraughtsGame(
   const queryClient = useQueryClient();
   const [selection, setSelection] = useState<SelectionState>({ type: 'idle' });
   const [lastMove, setLastMove] = useState<{ from: Position; to: Position } | null>(null);
-  const { animState, runSequence } = useDraughtsAnimationSequencer();
+  const [localBoard, setLocalBoard] = useState<BoardState | null>(null);
+  const { animState, runSequence, clearAnim } = useDraughtsAnimationSequencer();
   const isAnimating = animState !== null;
+
+  useEffect(() => {
+    if (!animState && board) {
+      setLocalBoard(board);
+    }
+  }, [board, animState]);
 
   const makeMoveMutation = useMutation({
     mutationFn: (move: Move) => orpc.makeMove({ gameId: gameId!, move: move as any }),
@@ -35,17 +43,30 @@ export function useDraughtsGame(
       setSelection({ type: 'idle' });
       setLastMove({ from: targetMove.from, to: targetMove.to });
 
+      const boardAfterHuman = applyMove(currentBoard, targetMove);
+      setLocalBoard(boardAfterHuman);
+
       const humanFrames = buildDraughtsMoveFrames(targetMove);
       runSequence(humanFrames, currentBoard, () => {
+        clearAnim();
+
         makeMoveMutation.mutate(targetMove, {
           onSuccess: (data) => {
+            queryClient.setQueryData(['game', gameId], data.game);
             if (data.aiMove) {
               const aiMove = data.aiMove as Move;
-              const boardAfterHuman = applyMove(currentBoard, targetMove);
+              const boardAfterAI = applyMove(boardAfterHuman, aiMove);
+              setLocalBoard(boardAfterAI);
+
               const aiFrames = buildDraughtsMoveFrames(data.aiMove as Move);
               runSequence(aiFrames, boardAfterHuman, () => {
                 setLastMove({ from: aiMove.from, to: aiMove.to });
+                clearAnim();
                 queryClient.invalidateQueries({ queryKey: ['game', gameId] });
+              }, (frame) => {
+                if (frame.type === 'move') playSound('move');
+                if (frame.type === 'capture') playSound('capture');
+                if (frame.type === 'promote') playSound('promote');
               });
             } else {
               queryClient.invalidateQueries({ queryKey: ['game', gameId] });
@@ -53,34 +74,40 @@ export function useDraughtsGame(
           },
           onError: () => {
             setLastMove(prevLastMove);
+            setLocalBoard(currentBoard);
             addToast('Move failed, please try again');
             queryClient.invalidateQueries({ queryKey: ['game', gameId] });
           },
         });
+      }, (frame) => {
+        if (frame.type === 'move') playSound('move');
+        if (frame.type === 'capture') playSound('capture');
+        if (frame.type === 'promote') playSound('promote');
       });
     },
-    [runSequence, makeMoveMutation, queryClient, gameId],
+    [runSequence, clearAnim, makeMoveMutation, queryClient, gameId],
   );
 
   const handleCellClick = useCallback(
     async (pos: Position) => {
-      if (!board || !isHumanTurn || isFinished || makeMoveMutation.isPending || isAnimating) return;
+      if (!localBoard || !isHumanTurn || isFinished || makeMoveMutation.isPending || isAnimating) return;
 
       if (selection.type === 'pieceSelected') {
         const targetMove = selection.validMoves.find(
           (m) => m.to.row === pos.row && m.to.col === pos.col,
         );
         if (targetMove) {
-          handleDraughtsMove(targetMove, board);
+          handleDraughtsMove(targetMove, localBoard);
           return;
         }
 
-        const clickedPiece = board.pieces.find(
+        const clickedPiece = localBoard.pieces.find(
           (p) => p.position.row === pos.row && p.position.col === pos.col && p.color === humanColor,
         );
         if (clickedPiece && clickedPiece.id !== selection.pieceId) {
           const moves = (await orpc.getValidMoves({ gameId: gameId!, pieceId: clickedPiece.id })) as unknown as Move[];
           setSelection({ type: 'pieceSelected', pieceId: clickedPiece.id, validMoves: moves });
+          playSound('click');
           return;
         }
 
@@ -88,16 +115,31 @@ export function useDraughtsGame(
         return;
       }
 
-      const clickedPiece = board.pieces.find(
+      const clickedPiece = localBoard.pieces.find(
         (p) => p.position.row === pos.row && p.position.col === pos.col && p.color === humanColor,
       );
       if (clickedPiece) {
         const moves = (await orpc.getValidMoves({ gameId: gameId!, pieceId: clickedPiece.id })) as unknown as Move[];
         setSelection({ type: 'pieceSelected', pieceId: clickedPiece.id, validMoves: moves });
+        playSound('click');
       }
     },
-    [board, isHumanTurn, isFinished, selection, humanColor, gameId, makeMoveMutation, isAnimating, handleDraughtsMove],
+    [localBoard, isHumanTurn, isFinished, selection, humanColor, gameId, makeMoveMutation, isAnimating, handleDraughtsMove],
   );
+
+  useEffect(() => {
+    if (!localBoard || !isHumanTurn || isFinished || makeMoveMutation.isPending || isAnimating || selection.type !== 'idle') return;
+    const allMoves = getAllValidMoves(localBoard, humanColor);
+    if (allMoves.length !== 1) return;
+    const uniquePieceIds = new Set(allMoves.map(m => m.pieceId));
+    if (uniquePieceIds.size !== 1) return;
+    handleDraughtsMove(allMoves[0], localBoard);
+  }, [localBoard, isHumanTurn, isFinished, isAnimating, selection, humanColor, handleDraughtsMove, makeMoveMutation.isPending]);
+
+  const validMoves =
+    selection.type === 'pieceSelected' && !isAnimating
+      ? selection.validMoves
+      : [];
 
   const validTargets =
     selection.type === 'pieceSelected' && !isAnimating
@@ -109,12 +151,13 @@ export function useDraughtsGame(
   const resetSelection = useCallback(() => {
     setSelection({ type: 'idle' });
     setLastMove(null);
-  }, []);
+    if (board) setLocalBoard(board);
+  }, [board]);
 
   const forcedCaptureHint =
-    isHumanTurn && !isFinished && board
+    isHumanTurn && !isFinished && localBoard
       ? (() => {
-          const allMoves = getAllValidMoves(board, humanColor);
+          const allMoves = getAllValidMoves(localBoard, humanColor);
           const hasCapture = allMoves.some((m) => m.capturedPieceIds.length > 0);
           if (!hasCapture) return null;
           const selectedMoves =
@@ -126,28 +169,47 @@ export function useDraughtsGame(
           if (selection.type === 'pieceSelected' && selectedMoves.length === 0) {
             return '必须吃子！请选择可以吃子的棋子';
           }
-          return '提示：有吃子机会时必须吃子';
+          return '必须吃子！请选择高亮的棋子';
         })()
       : null;
 
-  const movablePieceIds =
-    isHumanTurn && !isFinished && board
+  const aiColor = humanColor === PieceColor.DARK ? PieceColor.LIGHT : PieceColor.DARK;
+
+  const threatenedPieceIds =
+    isHumanTurn && !isFinished && localBoard
       ? (() => {
-          const allMoves = getAllValidMoves(board, humanColor);
+          const aiMoves = getAllValidMoves(localBoard, aiColor);
+          const ids = new Set<string>();
+          for (const m of aiMoves) {
+            for (const cid of m.capturedPieceIds) {
+              ids.add(cid);
+            }
+          }
+          return ids;
+        })()
+      : new Set<string>();
+
+  const movablePieceIds =
+    isHumanTurn && !isFinished && localBoard
+      ? (() => {
+          const allMoves = getAllValidMoves(localBoard, humanColor);
           const ids = new Set(allMoves.map(m => m.pieceId));
           return ids;
         })()
       : null;
 
   return {
+    localBoard,
     selectedPieceId,
     validTargets,
+    validMoves,
     lastMove,
     animState,
     isAnimating,
     isPending: makeMoveMutation.isPending,
     forcedCaptureHint,
     movablePieceIds,
+    threatenedPieceIds,
     handleCellClick,
     resetSelection,
   };

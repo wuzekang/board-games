@@ -1,16 +1,16 @@
 import type { PieceColor } from '@board-games/shared';
 import {
-  type ChineseChessBoardState,
-  type ChineseChessMove,
-  ChineseChessMoveType,
+  type XiangqiBoardState,
+  type XiangqiMove,
+  XiangqiMoveType,
   PieceColor as SharedPieceColor,
-} from '@board-games/shared/chinese_chess';
+} from '@board-games/shared/xiangqi';
 import {
-  getAllValidMoves,
-  applyChineseChessMove,
-  getChineseChessGameResult,
-} from '@board-games/shared/chinese_chess';
-import { evaluateChineseChessBoard } from './heuristic';
+  getAllXiangqiValidMoves,
+  applyXiangqiMove,
+  getXiangqiGameResult,
+} from '@board-games/shared/xiangqi';
+import { evaluateXiangqiBoard } from './heuristic';
 import type { AIEngine } from '../interface';
 
 const DEPTH_BY_DIFFICULTY: Record<string, number> = {
@@ -19,15 +19,15 @@ const DEPTH_BY_DIFFICULTY: Record<string, number> = {
   hard: 3,
 };
 
-export class ChineseChessAI implements AIEngine<ChineseChessBoardState, ChineseChessMove> {
+export class XiangqiAI implements AIEngine<XiangqiBoardState, XiangqiMove> {
   private difficulty: string;
 
   constructor(difficulty: string) {
     this.difficulty = difficulty;
   }
 
-  getBestMove(board: ChineseChessBoardState, aiColor: PieceColor): ChineseChessMove | null {
-    const moves = getAllValidMoves(board, aiColor);
+  getBestMove(board: XiangqiBoardState, aiColor: PieceColor): XiangqiMove | null {
+    const moves = getAllXiangqiValidMoves(board, aiColor);
     if (moves.length === 0) return null;
 
     const depth = DEPTH_BY_DIFFICULTY[this.difficulty] ?? 2;
@@ -40,7 +40,7 @@ export class ChineseChessAI implements AIEngine<ChineseChessBoardState, ChineseC
     let bestScore = -Infinity;
 
     for (const move of sorted) {
-      const newBoard = applyChineseChessMove(board, move);
+      const newBoard = applyXiangqiMove(board, move);
       const score = this.minimax(
         newBoard,
         depth - 1,
@@ -59,7 +59,7 @@ export class ChineseChessAI implements AIEngine<ChineseChessBoardState, ChineseC
   }
 
   private minimax(
-    board: ChineseChessBoardState,
+    board: XiangqiBoardState,
     depth: number,
     alpha: number,
     beta: number,
@@ -68,15 +68,15 @@ export class ChineseChessAI implements AIEngine<ChineseChessBoardState, ChineseC
     humanColor: SharedPieceColor,
   ): number {
     const currentColor = isHumanTurn ? humanColor : aiColor;
-    const result = getChineseChessGameResult(board, currentColor);
+    const result = getXiangqiGameResult(board, currentColor);
     if (result) {
       if (result.winner === aiColor) return 100000 + depth;
       if (result.winner === humanColor) return -100000 - depth;
       if (result.isDraw) return 0;
     }
-    if (depth === 0) return evaluateChineseChessBoard(board, aiColor);
+    if (depth === 0) return evaluateXiangqiBoard(board, aiColor);
 
-    const moves = getAllValidMoves(board, currentColor);
+    const moves = getAllXiangqiValidMoves(board, currentColor);
     if (moves.length === 0) return isHumanTurn ? 100000 : -100000;
 
     const sorted = [...moves].sort((a, b) => moveOrderScore(b) - moveOrderScore(a));
@@ -85,7 +85,7 @@ export class ChineseChessAI implements AIEngine<ChineseChessBoardState, ChineseC
       let minEval = Infinity;
       for (const move of sorted) {
         const val = this.minimax(
-          applyChineseChessMove(board, move),
+          applyXiangqiMove(board, move),
           depth - 1,
           alpha,
           beta,
@@ -102,7 +102,7 @@ export class ChineseChessAI implements AIEngine<ChineseChessBoardState, ChineseC
       let maxEval = -Infinity;
       for (const move of sorted) {
         const val = this.minimax(
-          applyChineseChessMove(board, move),
+          applyXiangqiMove(board, move),
           depth - 1,
           alpha,
           beta,
@@ -119,7 +119,7 @@ export class ChineseChessAI implements AIEngine<ChineseChessBoardState, ChineseC
   }
 }
 
-function moveOrderScore(move: ChineseChessMove): number {
-  if (move.type === ChineseChessMoveType.CAPTURE) return 1000;
+function moveOrderScore(move: XiangqiMove): number {
+  if (move.type === XiangqiMoveType.CAPTURE) return 1000;
   return 0;
 }

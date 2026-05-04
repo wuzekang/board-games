@@ -93,7 +93,7 @@ export function LudoBoard({
   return (
     <svg
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-      className="max-w-full h-auto rounded-xl shadow-md"
+      className="w-full max-h-[70vh] rounded-xl shadow-md"
       style={{ touchAction: 'manipulation' }}
     >
       <rect x={0} y={0} width={SVG_W} height={SVG_H} fill="#FFF8EE" rx={12} />
@@ -377,6 +377,7 @@ export function LudoBoard({
                   strokeWidth={2}
                   opacity={0.4}
                   className="animate-ping"
+                  style={{ transformOrigin: `${px}px ${py}px` }}
                 />
               )}
               <ellipse cx={px + 1} cy={py + 3} rx={PIECE_R * 0.9} ry={PIECE_R * 0.5} fill="rgba(0,0,0,0.2)" />

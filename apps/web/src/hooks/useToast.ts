@@ -29,7 +29,7 @@ export function useToasts() {
     return () => {
       listeners.delete(listener);
     };
-  });
+  }, []);
 
   return toasts;
 }

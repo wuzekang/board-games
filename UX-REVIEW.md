@@ -45,7 +45,7 @@
 
 | # | 问题 | 位置 | 影响 |
 |---|------|------|------|
-| 22 | `GameType.CHINESE_CHESS` 是幽灵值 | `types/game.ts` — enum 中存在但无实现、不可创建 | 误导开发者 |
+| 22 | `GameType.XIANGQI` 是幽灵值 | `types/game.ts` — enum 中存在但无实现、不可创建 | 误导开发者 |
 | 23 | oRPC 客户端 `move: any` / `getValidMoves` 返回 `any[]` | `orpc-client.ts:14,15` | 边界处丢失类型安全 |
 | 24 | 五子棋/围棋客户端生成临时 stoneId | `useGomokuGame.ts:31`, `useGoGame.ts:27` | 服务端会重新分配 ID，客户端 ID 是占位符；服务端校验依赖 ID 可能出错 |
 

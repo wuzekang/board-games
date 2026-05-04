@@ -4,6 +4,7 @@ export enum GameType {
   GOMOKU = 'gomoku',
   GO = 'go',
   LUDO = 'ludo',
+  JUNGLE = 'jungle',
 }
 
 export enum GameStatus {

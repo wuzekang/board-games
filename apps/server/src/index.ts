@@ -1,28 +1,17 @@
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { RPCHandler } from '@orpc/server/fetch';
 import { router } from './routers';
+import path from 'path';
+import fs from 'fs';
 
 const app = new Hono();
 
-app.use('*', cors({ origin: 'http://localhost:5173' }));
-
 const rpcHandler = new RPCHandler(router);
 
-const BODY_PARSER_METHODS = new Set(['json', 'text', 'arrayBuffer', 'blob', 'formData'] as const);
-
 app.use('/rpc/*', async (c, next) => {
-  const request = new Proxy(c.req.raw, {
-    get(target, prop: string | symbol) {
-      if (typeof prop === 'string' && BODY_PARSER_METHODS.has(prop as any)) {
-        return () => c.req[prop as 'json' | 'text' | 'arrayBuffer' | 'blob' | 'formData']();
-      }
-      return Reflect.get(target, prop, target);
-    },
-  });
-
-  const { matched, response } = await rpcHandler.handle(request, {
+  const { matched, response } = await rpcHandler.handle(c.req.raw, {
     prefix: '/rpc',
     context: {},
   });
@@ -34,9 +23,23 @@ app.use('/rpc/*', async (c, next) => {
   await next();
 });
 
-app.get('/', (c) => c.text('Board Games API'));
+const webDist = process.env.WEB_DIST || path.resolve(import.meta.dirname, '../../web/dist');
 
-const port = Number(process.env.PORT || 3000);
+app.use('/assets/*', serveStatic({ root: webDist }));
+app.use('/sounds/*', serveStatic({ root: webDist }));
+
+app.get('*', async (c) => {
+  const filePath = path.join(webDist, c.req.path === '/' ? 'index.html' : c.req.path.slice(1));
+  try {
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      return serveStatic({ root: webDist })(c, async () => {});
+    }
+  } catch {}
+  const indexHtml = path.join(webDist, 'index.html');
+  return c.html(fs.readFileSync(indexHtml, 'utf-8'));
+});
+
+const port = Number(process.env.PORT || 3001);
 serve({ fetch: app.fetch, port }, () => {
   console.log(`Server running on http://localhost:${port}`);
 });

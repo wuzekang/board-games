@@ -5,12 +5,12 @@ import {
   buildPieceMap,
 } from '../types/board';
 import {
-  type ChineseChessBoardState,
-  type ChineseChessPiece,
-  type ChineseChessMove,
-  type ChineseChessGameResult,
-  ChineseChessPieceType,
-  ChineseChessMoveType,
+  type XiangqiBoardState,
+  type XiangqiPiece,
+  type XiangqiMove,
+  type XiangqiGameResult,
+  XiangqiPieceType,
+  XiangqiMoveType,
 } from './types';
 
 let pieceIdCounter = 0;
@@ -41,26 +41,26 @@ function onOwnSide(pos: Position, color: PieceColor): boolean {
   return pos.row <= 4;
 }
 
-function buildXiangqiPieceMap(pieces: ChineseChessPiece[]): Map<string, ChineseChessPiece> {
-  const map = new Map<string, ChineseChessPiece>();
+function buildXiangqiPieceMap(pieces: XiangqiPiece[]): Map<string, XiangqiPiece> {
+  const map = new Map<string, XiangqiPiece>();
   for (const p of pieces) map.set(posKey(p.position), p);
   return map;
 }
 
-export function createInitialChineseChessBoard(): ChineseChessBoardState {
+export function createInitialXiangqiBoard(): XiangqiBoardState {
   pieceIdCounter = 0;
-  const pieces: ChineseChessPiece[] = [];
+  const pieces: XiangqiPiece[] = [];
 
-  const backRank: ChineseChessPieceType[] = [
-    ChineseChessPieceType.ROOK,
-    ChineseChessPieceType.HORSE,
-    ChineseChessPieceType.ELEPHANT,
-    ChineseChessPieceType.ADVISOR,
-    ChineseChessPieceType.KING,
-    ChineseChessPieceType.ADVISOR,
-    ChineseChessPieceType.ELEPHANT,
-    ChineseChessPieceType.HORSE,
-    ChineseChessPieceType.ROOK,
+  const backRank: XiangqiPieceType[] = [
+    XiangqiPieceType.ROOK,
+    XiangqiPieceType.HORSE,
+    XiangqiPieceType.ELEPHANT,
+    XiangqiPieceType.ADVISOR,
+    XiangqiPieceType.KING,
+    XiangqiPieceType.ADVISOR,
+    XiangqiPieceType.ELEPHANT,
+    XiangqiPieceType.HORSE,
+    XiangqiPieceType.ROOK,
   ];
 
   for (let col = 0; col < 9; col++) {
@@ -74,13 +74,13 @@ export function createInitialChineseChessBoard(): ChineseChessBoardState {
 
   pieces.push({
     id: nextPieceId(),
-    type: ChineseChessPieceType.CANNON,
+    type: XiangqiPieceType.CANNON,
     color: PieceColor.LIGHT,
     position: { row: 2, col: 1 },
   });
   pieces.push({
     id: nextPieceId(),
-    type: ChineseChessPieceType.CANNON,
+    type: XiangqiPieceType.CANNON,
     color: PieceColor.LIGHT,
     position: { row: 2, col: 7 },
   });
@@ -88,7 +88,7 @@ export function createInitialChineseChessBoard(): ChineseChessBoardState {
   for (let col = 0; col < 9; col += 2) {
     pieces.push({
       id: nextPieceId(),
-      type: ChineseChessPieceType.PAWN,
+      type: XiangqiPieceType.PAWN,
       color: PieceColor.LIGHT,
       position: { row: 3, col },
     });
@@ -105,13 +105,13 @@ export function createInitialChineseChessBoard(): ChineseChessBoardState {
 
   pieces.push({
     id: nextPieceId(),
-    type: ChineseChessPieceType.CANNON,
+    type: XiangqiPieceType.CANNON,
     color: PieceColor.DARK,
     position: { row: 7, col: 1 },
   });
   pieces.push({
     id: nextPieceId(),
-    type: ChineseChessPieceType.CANNON,
+    type: XiangqiPieceType.CANNON,
     color: PieceColor.DARK,
     position: { row: 7, col: 7 },
   });
@@ -119,7 +119,7 @@ export function createInitialChineseChessBoard(): ChineseChessBoardState {
   for (let col = 0; col < 9; col += 2) {
     pieces.push({
       id: nextPieceId(),
-      type: ChineseChessPieceType.PAWN,
+      type: XiangqiPieceType.PAWN,
       color: PieceColor.DARK,
       position: { row: 6, col },
     });
@@ -133,7 +133,7 @@ export function createInitialChineseChessBoard(): ChineseChessBoardState {
   };
 }
 
-export function cloneChineseChessBoard(board: ChineseChessBoardState): ChineseChessBoardState {
+export function cloneXiangqiBoard(board: XiangqiBoardState): XiangqiBoardState {
   return {
     size: 10,
     pieces: board.pieces.map((p) => ({
@@ -185,10 +185,10 @@ const ROOK_DIRS = [
 ];
 
 function addMoveIfValid(
-  moves: ChineseChessMove[],
-  piece: ChineseChessPiece,
+  moves: XiangqiMove[],
+  piece: XiangqiPiece,
   to: Position,
-  pieceMap: Map<string, ChineseChessPiece>,
+  pieceMap: Map<string, XiangqiPiece>,
 ): void {
   if (!inBounds(to)) return;
   const target = pieceMap.get(posKey(to));
@@ -198,7 +198,7 @@ function addMoveIfValid(
         pieceId: piece.id,
         from: { ...piece.position },
         to,
-        type: ChineseChessMoveType.CAPTURE,
+        type: XiangqiMoveType.CAPTURE,
         capturedPieceId: target.id,
       });
     }
@@ -208,16 +208,16 @@ function addMoveIfValid(
     pieceId: piece.id,
     from: { ...piece.position },
     to,
-    type: ChineseChessMoveType.NORMAL,
+    type: XiangqiMoveType.NORMAL,
     capturedPieceId: null,
   });
 }
 
 function generateKingMoves(
-  piece: ChineseChessPiece,
-  pieceMap: Map<string, ChineseChessPiece>,
-): ChineseChessMove[] {
-  const moves: ChineseChessMove[] = [];
+  piece: XiangqiPiece,
+  pieceMap: Map<string, XiangqiPiece>,
+): XiangqiMove[] {
+  const moves: XiangqiMove[] = [];
   for (const off of KING_OFFSETS) {
     const to: Position = {
       row: piece.position.row + off.dr,
@@ -230,10 +230,10 @@ function generateKingMoves(
 }
 
 function generateAdvisorMoves(
-  piece: ChineseChessPiece,
-  pieceMap: Map<string, ChineseChessPiece>,
-): ChineseChessMove[] {
-  const moves: ChineseChessMove[] = [];
+  piece: XiangqiPiece,
+  pieceMap: Map<string, XiangqiPiece>,
+): XiangqiMove[] {
+  const moves: XiangqiMove[] = [];
   for (const off of ADVISOR_OFFSETS) {
     const to: Position = {
       row: piece.position.row + off.dr,
@@ -246,10 +246,10 @@ function generateAdvisorMoves(
 }
 
 function generateElephantMoves(
-  piece: ChineseChessPiece,
-  pieceMap: Map<string, ChineseChessPiece>,
-): ChineseChessMove[] {
-  const moves: ChineseChessMove[] = [];
+  piece: XiangqiPiece,
+  pieceMap: Map<string, XiangqiPiece>,
+): XiangqiMove[] {
+  const moves: XiangqiMove[] = [];
   for (const em of ELEPHANT_MOVES) {
     const to: Position = {
       row: piece.position.row + em.dr,
@@ -268,10 +268,10 @@ function generateElephantMoves(
 }
 
 function generateHorseMoves(
-  piece: ChineseChessPiece,
-  pieceMap: Map<string, ChineseChessPiece>,
-): ChineseChessMove[] {
-  const moves: ChineseChessMove[] = [];
+  piece: XiangqiPiece,
+  pieceMap: Map<string, XiangqiPiece>,
+): XiangqiMove[] {
+  const moves: XiangqiMove[] = [];
   for (const hm of HORSE_MOVES) {
     const to: Position = {
       row: piece.position.row + hm.dr,
@@ -289,10 +289,10 @@ function generateHorseMoves(
 }
 
 function generateRookMoves(
-  piece: ChineseChessPiece,
-  pieceMap: Map<string, ChineseChessPiece>,
-): ChineseChessMove[] {
-  const moves: ChineseChessMove[] = [];
+  piece: XiangqiPiece,
+  pieceMap: Map<string, XiangqiPiece>,
+): XiangqiMove[] {
+  const moves: XiangqiMove[] = [];
   for (const dir of ROOK_DIRS) {
     let r = piece.position.row + dir.dr;
     let c = piece.position.col + dir.dc;
@@ -305,7 +305,7 @@ function generateRookMoves(
             pieceId: piece.id,
             from: { ...piece.position },
             to: pos,
-            type: ChineseChessMoveType.CAPTURE,
+            type: XiangqiMoveType.CAPTURE,
             capturedPieceId: target.id,
           });
         }
@@ -315,7 +315,7 @@ function generateRookMoves(
         pieceId: piece.id,
         from: { ...piece.position },
         to: pos,
-        type: ChineseChessMoveType.NORMAL,
+        type: XiangqiMoveType.NORMAL,
         capturedPieceId: null,
       });
       r += dir.dr;
@@ -326,10 +326,10 @@ function generateRookMoves(
 }
 
 function generateCannonMoves(
-  piece: ChineseChessPiece,
-  pieceMap: Map<string, ChineseChessPiece>,
-): ChineseChessMove[] {
-  const moves: ChineseChessMove[] = [];
+  piece: XiangqiPiece,
+  pieceMap: Map<string, XiangqiPiece>,
+): XiangqiMove[] {
+  const moves: XiangqiMove[] = [];
   for (const dir of ROOK_DIRS) {
     let r = piece.position.row + dir.dr;
     let c = piece.position.col + dir.dc;
@@ -345,7 +345,7 @@ function generateCannonMoves(
             pieceId: piece.id,
             from: { ...piece.position },
             to: pos,
-            type: ChineseChessMoveType.NORMAL,
+            type: XiangqiMoveType.NORMAL,
             capturedPieceId: null,
           });
         }
@@ -356,7 +356,7 @@ function generateCannonMoves(
               pieceId: piece.id,
               from: { ...piece.position },
               to: pos,
-              type: ChineseChessMoveType.CAPTURE,
+              type: XiangqiMoveType.CAPTURE,
               capturedPieceId: target.id,
             });
           }
@@ -371,10 +371,10 @@ function generateCannonMoves(
 }
 
 function generatePawnMoves(
-  piece: ChineseChessPiece,
-  pieceMap: Map<string, ChineseChessPiece>,
-): ChineseChessMove[] {
-  const moves: ChineseChessMove[] = [];
+  piece: XiangqiPiece,
+  pieceMap: Map<string, XiangqiPiece>,
+): XiangqiMove[] {
+  const moves: XiangqiMove[] = [];
   const forward = piece.color === PieceColor.DARK ? -1 : 1;
   const crossed = !onOwnSide(piece.position, piece.color);
 
@@ -402,36 +402,36 @@ function generatePawnMoves(
 }
 
 function generatePseudoLegalMoves(
-  piece: ChineseChessPiece,
-  board: ChineseChessBoardState,
-  pieceMap: Map<string, ChineseChessPiece>,
-): ChineseChessMove[] {
+  piece: XiangqiPiece,
+  board: XiangqiBoardState,
+  pieceMap: Map<string, XiangqiPiece>,
+): XiangqiMove[] {
   switch (piece.type) {
-    case ChineseChessPieceType.KING:
+    case XiangqiPieceType.KING:
       return generateKingMoves(piece, pieceMap);
-    case ChineseChessPieceType.ADVISOR:
+    case XiangqiPieceType.ADVISOR:
       return generateAdvisorMoves(piece, pieceMap);
-    case ChineseChessPieceType.ELEPHANT:
+    case XiangqiPieceType.ELEPHANT:
       return generateElephantMoves(piece, pieceMap);
-    case ChineseChessPieceType.HORSE:
+    case XiangqiPieceType.HORSE:
       return generateHorseMoves(piece, pieceMap);
-    case ChineseChessPieceType.ROOK:
+    case XiangqiPieceType.ROOK:
       return generateRookMoves(piece, pieceMap);
-    case ChineseChessPieceType.CANNON:
+    case XiangqiPieceType.CANNON:
       return generateCannonMoves(piece, pieceMap);
-    case ChineseChessPieceType.PAWN:
+    case XiangqiPieceType.PAWN:
       return generatePawnMoves(piece, pieceMap);
     default:
       return [];
   }
 }
 
-function isKingsFacing(board: ChineseChessBoardState): boolean {
+function isKingsFacing(board: XiangqiBoardState): boolean {
   const darkKing = board.pieces.find(
-    (p) => p.type === ChineseChessPieceType.KING && p.color === PieceColor.DARK,
+    (p) => p.type === XiangqiPieceType.KING && p.color === PieceColor.DARK,
   );
   const lightKing = board.pieces.find(
-    (p) => p.type === ChineseChessPieceType.KING && p.color === PieceColor.LIGHT,
+    (p) => p.type === XiangqiPieceType.KING && p.color === PieceColor.LIGHT,
   );
   if (!darkKing || !lightKing) return false;
   if (darkKing.position.col !== lightKing.position.col) return false;
@@ -448,7 +448,7 @@ function isKingsFacing(board: ChineseChessBoardState): boolean {
 }
 
 function isSquareAttackedBy(
-  board: ChineseChessBoardState,
+  board: XiangqiBoardState,
   pos: Position,
   attackerColor: PieceColor,
 ): boolean {
@@ -458,7 +458,7 @@ function isSquareAttackedBy(
     if (piece.color !== attackerColor) continue;
 
     switch (piece.type) {
-      case ChineseChessPieceType.KING: {
+      case XiangqiPieceType.KING: {
         for (const off of KING_OFFSETS) {
           const aPos: Position = {
             row: piece.position.row + off.dr,
@@ -471,7 +471,7 @@ function isSquareAttackedBy(
         break;
       }
 
-      case ChineseChessPieceType.ADVISOR: {
+      case XiangqiPieceType.ADVISOR: {
         for (const off of ADVISOR_OFFSETS) {
           const aPos: Position = {
             row: piece.position.row + off.dr,
@@ -484,7 +484,7 @@ function isSquareAttackedBy(
         break;
       }
 
-      case ChineseChessPieceType.ELEPHANT: {
+      case XiangqiPieceType.ELEPHANT: {
         for (const em of ELEPHANT_MOVES) {
           const to: Position = {
             row: piece.position.row + em.dr,
@@ -502,7 +502,7 @@ function isSquareAttackedBy(
         break;
       }
 
-      case ChineseChessPieceType.HORSE: {
+      case XiangqiPieceType.HORSE: {
         for (const hm of HORSE_MOVES) {
           const to: Position = {
             row: piece.position.row + hm.dr,
@@ -519,7 +519,7 @@ function isSquareAttackedBy(
         break;
       }
 
-      case ChineseChessPieceType.ROOK: {
+      case XiangqiPieceType.ROOK: {
         for (const dir of ROOK_DIRS) {
           let r = piece.position.row + dir.dr;
           let c = piece.position.col + dir.dc;
@@ -533,7 +533,7 @@ function isSquareAttackedBy(
         break;
       }
 
-      case ChineseChessPieceType.CANNON: {
+      case XiangqiPieceType.CANNON: {
         for (const dir of ROOK_DIRS) {
           let r = piece.position.row + dir.dr;
           let c = piece.position.col + dir.dc;
@@ -557,7 +557,7 @@ function isSquareAttackedBy(
         break;
       }
 
-      case ChineseChessPieceType.PAWN: {
+      case XiangqiPieceType.PAWN: {
         const forward = piece.color === PieceColor.DARK ? -1 : 1;
         const fwdPos: Position = {
           row: piece.position.row + forward,
@@ -586,19 +586,19 @@ function isSquareAttackedBy(
   return false;
 }
 
-export function isInCheck(board: ChineseChessBoardState, color: PieceColor): boolean {
+export function isXiangqiInCheck(board: XiangqiBoardState, color: PieceColor): boolean {
   const king = board.pieces.find(
-    (p) => p.type === ChineseChessPieceType.KING && p.color === color,
+    (p) => p.type === XiangqiPieceType.KING && p.color === color,
   );
   if (!king) return false;
   return isSquareAttackedBy(board, king.position, opponentColor(color));
 }
 
-export function applyChineseChessMove(
-  board: ChineseChessBoardState,
-  move: ChineseChessMove,
-): ChineseChessBoardState {
-  const newBoard = cloneChineseChessBoard(board);
+export function applyXiangqiMove(
+  board: XiangqiBoardState,
+  move: XiangqiMove,
+): XiangqiBoardState {
+  const newBoard = cloneXiangqiBoard(board);
 
   const pieceIdx = newBoard.pieces.findIndex((p) => p.id === move.pieceId);
   if (pieceIdx === -1) return newBoard;
@@ -614,7 +614,7 @@ export function applyChineseChessMove(
 
   newBoard.nextColor = opponentColor(board.nextColor);
 
-  if (move.type === ChineseChessMoveType.CAPTURE) {
+  if (move.type === XiangqiMoveType.CAPTURE) {
     newBoard.halfMoveClock = 0;
   } else {
     newBoard.halfMoveClock = board.halfMoveClock + 1;
@@ -623,10 +623,10 @@ export function applyChineseChessMove(
   return newBoard;
 }
 
-export function getValidMovesForPiece(
-  board: ChineseChessBoardState,
+export function getXiangqiValidMovesForPiece(
+  board: XiangqiBoardState,
   pieceId: string,
-): ChineseChessMove[] {
+): XiangqiMove[] {
   const piece = board.pieces.find((p) => p.id === pieceId);
   if (!piece) return [];
 
@@ -634,30 +634,30 @@ export function getValidMovesForPiece(
   const pseudoLegal = generatePseudoLegalMoves(piece, board, pieceMap);
 
   return pseudoLegal.filter((move) => {
-    const newBoard = applyChineseChessMove(board, move);
-    return !isInCheck(newBoard, piece.color) && !isKingsFacing(newBoard);
+    const newBoard = applyXiangqiMove(board, move);
+    return !isXiangqiInCheck(newBoard, piece.color) && !isKingsFacing(newBoard);
   });
 }
 
-export function getAllValidMoves(
-  board: ChineseChessBoardState,
+export function getAllXiangqiValidMoves(
+  board: XiangqiBoardState,
   color: PieceColor,
-): ChineseChessMove[] {
-  const moves: ChineseChessMove[] = [];
+): XiangqiMove[] {
+  const moves: XiangqiMove[] = [];
   for (const piece of board.pieces) {
     if (piece.color !== color) continue;
-    moves.push(...getValidMovesForPiece(board, piece.id));
+    moves.push(...getXiangqiValidMovesForPiece(board, piece.id));
   }
   return moves;
 }
 
-export function isValidChineseChessMove(
-  board: ChineseChessBoardState,
-  move: ChineseChessMove,
+export function isValidXiangqiMove(
+  board: XiangqiBoardState,
+  move: XiangqiMove,
   color: PieceColor,
 ): boolean {
   if (board.nextColor !== color) return false;
-  const validMoves = getAllValidMoves(board, color);
+  const validMoves = getAllXiangqiValidMoves(board, color);
   return validMoves.some(
     (m) =>
       m.pieceId === move.pieceId &&
@@ -667,12 +667,12 @@ export function isValidChineseChessMove(
   );
 }
 
-export function getChineseChessGameResult(
-  board: ChineseChessBoardState,
+export function getXiangqiGameResult(
+  board: XiangqiBoardState,
   currentColor: PieceColor,
-): ChineseChessGameResult | null {
-  const allMoves = getAllValidMoves(board, currentColor);
-  const inCheck = isInCheck(board, currentColor);
+): XiangqiGameResult | null {
+  const allMoves = getAllXiangqiValidMoves(board, currentColor);
+  const inCheck = isXiangqiInCheck(board, currentColor);
 
   if (allMoves.length === 0) {
     if (inCheck) {
@@ -685,7 +685,7 @@ export function getChineseChessGameResult(
       return {
         winner: opponentColor(currentColor),
         isDraw: false,
-        reason: 'stalemate',
+        reason: 'no_valid_moves',
       };
     }
   }

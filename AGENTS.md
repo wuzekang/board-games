@@ -34,7 +34,7 @@ No test runner configured.
 
 ## API Endpoints (POST /rpc/…)
 
-- `createGame` — `{ gameType: 'draughts_100'|'draughts_64'|'chinese_chess'|'chess'|'gomoku'|'go', boardSize?: 10|8|19|13|9, difficulty: string, humanColor: string, humanGoesFirst: bool }`
+- `createGame` — `{ gameType: 'draughts'|'xiangqi'|'chess'|'gomoku'|'go', boardSize?: 10|8|19|13|9, difficulty: string, humanColor: string, humanGoesFirst: bool }`
 - `getGame` — `{ gameId }`
 - `makeMove` — `{ gameId, move }` (move shape varies by game type — Move for draughts, ChessMove for chess, GomokuMove for gomoku, GoMove for go)
 - `getValidMoves` — `{ gameId, pieceId }`
@@ -57,9 +57,8 @@ Game service uses **Strategy pattern** via `getStrategy(gameType)` from `apps/se
 
 | gameType | Strategy Class | File |
 |----------|---------------|------|
-| `draughts_100` | `DraughtsStrategy(10)` | `strategies/draughts.strategy.ts` |
-| `draughts_64` | `DraughtsStrategy(8)` | `strategies/draughts.strategy.ts` |
-| `chinese_chess` | `ChineseChessStrategy` | `strategies/chinese_chess.strategy.ts` |
+| `draughts` | `DraughtsStrategy(boardSize)` | `strategies/draughts.strategy.ts` |
+| `xiangqi` | `XiangqiStrategy` | `strategies/xiangqi.strategy.ts` |
 | `chess` | `ChessStrategy` | `strategies/chess.strategy.ts` |
 | `gomoku` | `GomokuStrategy` | `strategies/gomoku.strategy.ts` |
 | `go` | `GoStrategy(boardSize)` | `strategies/go.strategy.ts` |
@@ -164,7 +163,7 @@ AI dispatch uses generic `AIEngine<B, M>` (defined in `services/ai/interface.ts`
 
 ## Web UI Key Patterns
 
-- **Home page**: Game type selector → conditional options (board size for draughts and go, color labels differ by game). Six game types: draughts_100, draughts_64, chinese_chess, chess, gomoku, go.
+- **Home page**: Game type selector → conditional options (board size for draughts and go, color labels differ by game). Six game types: draughts, xiangqi, chess, gomoku, go.
 - **Game page**: Detects `gameType` from loaded game data, delegates to per-game hook + renders corresponding Board component.
 - **Per-game hooks** (in `apps/web/src/hooks/`):
   - `useDraughtsGame.ts` — selection state machine + draughts animation + click handler
@@ -181,7 +180,7 @@ AI dispatch uses generic `AIEngine<B, M>` (defined in `services/ai/interface.ts`
   - **GoBoard**: `flip = humanColor === LIGHT` (symmetric board, same rule as draughts)
 - **ChessBoard**: SVG-based, 72px cells, classic Lichess palette (#f0d9b5/#b58863), **solid Unicode chess symbols** (♚♛♜♝♞♟ for both sides), fill color distinguishes white (#fff + #666 stroke) vs black (#1a1a1a + #999 stroke). Rank/file labels, check highlight (red), last-move highlight (yellow). Selected cell: amber overlay `rgba(216,138,80,0.35)`. Valid targets: small hollow circle (empty) or capture ring (occupied).
 - **Board (Draughts)**: SVG-based, pieces rendered as `<PieceElement>` with CSS transition animations. **Piece style: classic top-down wooden disc** — no side-view, no 3D extrusion. Black pieces: deep walnut radial gradient (`#2c2520`→`#12100d`), ivory stroke `#3d3530`. White pieces: ivory white radial gradient (`#f5f0e8`→`#d4c4a8`), stroke `#b8a888`. Inner ring: subtle bevel (`rgba` at 0.06/0.12). King: ♛ symbol, text color `#7a6e62` (black) / `#5c4a2a` (white); stacked discs showing bottom edge. Piece `<g>` elements MUST have `pointerEvents: 'none'` so clicks pass through to underlying cell `<rect>` handlers. **Selection**: cell fill highlight (dark cell `#92400e`, light cell `#fde68a`) instead of border; selected piece shadow offset increases (2,4, 0.3 opacity). **Movable pieces**: `movablePieceIds` from hook — cells with movable pieces get `draughts-movable-cell` class (hover: `brightness(1.25)`). **Valid targets**: warm amber hollow circles (empty: small ring `#d97706`; capture: piece-sized ring + corner dot `#d97706`). No toast on immovable pieces.
-- **ChineseChessBoard**: SVG-based, wooden board (#F0D9A0), palace diagonals, 楚河漢界. **Cross-mark indicators** at cannon positions (2,1)(2,7)(7,1)(7,7) and pawn positions (3,0)(3,2)(3,4)(3,6)(3,8)(6,0)(6,2)(6,4)(6,6)(6,8) — edge positions only draw inner half. **Piece style: classic wooden drum disc** — `linearGradient` top-down (`#f0dbb8`→`#c0a070`) simulating flat drum top, no spherical highlight. Red pieces: text `#b91c1c`, inner ring `#b91c1c`. Black pieces: text `#1c1917`, inner ring `#1c1917`. Selected: amber stroke `#d97706` strokeWidth 2.5.
+- **XiangqiBoard**: SVG-based, wooden board (#F0D9A0), palace diagonals, 楚河漢界. **Cross-mark indicators** at cannon positions (2,1)(2,7)(7,1)(7,7) and pawn positions (3,0)(3,2)(3,4)(3,6)(3,8)(6,0)(6,2)(6,4)(6,6)(6,8) — edge positions only draw inner half. **Piece style: classic wooden drum disc** — `linearGradient` top-down (`#f0dbb8`→`#c0a070`) simulating flat drum top, no spherical highlight. Red pieces: text `#b91c1c`, inner ring `#b91c1c`. Black pieces: text `#1c1917`, inner ring `#1c1917`. Selected: amber stroke `#d97706` strokeWidth 2.5.
 - **GomokuBoard**: SVG-based Go-style 15×15 board, 40px cell spacing, wood color (#DCB468), star points at (3,3)/(3,11)/(11,3)/(11,11)/(7,7). **Stone colors unified**: black `#2c2520`→`#12100d`, ivory white `#f5f0e8`→`#d4c4a8`. Spherical radial gradient highlight (black 0.08, white 0.45). Single-click placement. Last move dot indicator, winning line red overlay. No toast on occupied cells.
 - **GoBoard**: SVG-based, dynamic cellSize (19路=32px, others=40px), wood color (#DCB468), star points per board size. Go coordinate labels (A-T skipping I). **Stone colors unified** with Gomoku. Single-click placement. Last move indicator dot. Pass button in GameControls. No toast on occupied cells.
 - **Promotion flow**: `awaitingPromotion` state in selection state machine → shows `<PromotionDialog>` → user picks piece → `makeMove` called with `promotionPiece` set.
@@ -190,10 +189,38 @@ AI dispatch uses generic `AIEngine<B, M>` (defined in `services/ai/interface.ts`
 ### makeMove Mutation — Critical Pattern
 
 **All `makeMoveMutation.mutate()` calls MUST include an `onSuccess` callback** that:
-1. Updates `lastMove` from the AI's response (if `data.aiMove` exists)
-2. Calls `queryClient.invalidateQueries({ queryKey: ['game', gameId] })` to refresh the board state
+1. Calls `queryClient.setQueryData(['game', gameId], data.game)` **before** `invalidateQueries` — this immediately updates the React Query cache with the server's latest game state, preventing a one-render gap where the board flashes back to pre-move positions (stale cache → new fetch).
+2. Updates `lastMove` from the AI's response (if `data.aiMove` exists)
+3. Calls `queryClient.invalidateQueries({ queryKey: ['game', gameId] })` to trigger an async refetch for freshness
 
-Without `onSuccess`, the React Query cache goes stale after the first move, causing subsequent moves to fail with "Invalid move" (client uses outdated board, server validates against current board). This applies to chess normal moves, chess promotion moves, draughts moves, gomoku moves, and go moves — all follow the same pattern.
+Without `setQueryData`, there's a flash between `invalidateQueries` (schedules async fetch) and the fetch resolving (cache updates). This applies to all games: draughts, chess, xiangqi, gomoku, go, ludo.
+
+### LocalBoard — All Games' Client-Side Optimistic Board State
+
+**Problem**: React Query's `invalidateQueries` schedules an async refetch. Between the invalidation and the fetch resolving, the cache is stale. If a component renders during this gap, it shows the pre-move board — causing a visible flash/flicker.
+
+**Solution** (applies to ALL six games — Draughts, Chess, Xiangqi, Gomoku, Go, Ludo):
+- Each game hook maintains `localBoard` state, updated optimistically using the corresponding `applyMove` from `@board-games/shared/*`
+- On human move: immediately `setLocalBoard(applyMove(currentBoard, move))` before the mutation fires
+- On AI move received in `onSuccess`: immediately `setLocalBoard(applyMove(applyMove(boardBeforeHumanMove, humanMove), aiMove))` — double-apply to get from pre-human to post-AI state
+- `useEffect` syncs `localBoard` from React Query `board` when not animating (authoritative source on refetch)
+- `Game.tsx` passes `xxx.localBoard ?? board` to each board component (fallback for initial load)
+- On `onError`: revert `setLocalBoard(boardBeforeMove)` and reset selection/lastMove state
+
+**Draughts-specific animation detail** (`useDraughtsAnimationSequencer.ts`):
+- The sequencer does NOT call `setAnimState(null)` on completion — instead exposes `clearAnim()` for the caller
+- The caller calls `clearAnim()` in `onComplete` after `localBoard` is already set, so React batches both updates into one render — no gap
+- `Board.tsx` uses: `displayBoard = animState?.boardSnapshot ?? board`
+
+### Draughts Promotion Animation — SVG Transform Constraint
+
+**Problem**: CSS `@keyframes` using `transform: scale(...)` will override the inline `style.transform` that positions the piece via `translate(...)`. This causes the piece to jump to SVG origin (0,0) — looks like it disappears and flies in from the top-left corner.
+
+**Solution** (`Board.tsx` `PieceElement`):
+- CSS `@keyframes piece-promote` only controls `filter` (glow effect), never `transform`
+- Scale animation is driven by JS `requestAnimationFrame`, tracking `promotePhase` state (numeric scale value)
+- The scale is appended to the inline `transform` string: `translate(...) scale(promotePhase)`, so both position and scale coexist without conflict
+- Never use CSS `animation` or `transition` on `transform` for SVG elements that are also positioned via inline `transform`
 
 ## Database Schema
 

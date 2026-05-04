@@ -10,7 +10,7 @@ import type {
   MoveRecord,
   ContractMove,
   ContractChessMove,
-  ContractChineseChessMove,
+  ContractXiangqiMove,
   ContractGomokuMove,
   ContractGoMove,
   ContractLudoMove,
@@ -28,7 +28,7 @@ import {
 } from '@board-games/shared/ludo';
 
 type AnyMove = Record<string, any>;
-type ContractAnyMove = ContractMove | ContractChessMove | ContractChineseChessMove | ContractGomokuMove | ContractGoMove | ContractLudoMove;
+type ContractAnyMove = ContractMove | ContractChessMove | ContractXiangqiMove | ContractGomokuMove | ContractGoMove | ContractLudoMove;
 
 const locks = new Map<string, Promise<void>>();
 
@@ -42,7 +42,7 @@ function toContractMove(m: AnyMove): ContractAnyMove {
     return { ...m, type: m.type, promotionPiece: m.promotionPiece ?? null } as ContractChessMove;
   }
   if ('capturedPieceId' in m) {
-    return { ...m } as ContractChineseChessMove;
+    return { ...m } as ContractXiangqiMove;
   }
   return { ...m, type: m.type } as ContractMove;
 }
@@ -189,7 +189,7 @@ async function makeMoveInner(gameId: string, move: AnyMove): Promise<MakeMoveOut
   }
 
   let currentBoard = strategy.applyMove(board, move);
-  const nextColor = game.gameType === 'gomoku' || game.gameType === 'chinese_chess' ? humanColor : opponentColor(humanColor);
+  const nextColor = opponentColor(humanColor);
   const humanResolved = strategy.resolveWinner(currentBoard, nextColor);
 
   await db.insert(moves).values({
@@ -225,7 +225,7 @@ async function makeMoveInner(gameId: string, move: AnyMove): Promise<MakeMoveOut
     }
   }
 
-  const aiNextColor = game.gameType === 'gomoku' || game.gameType === 'chinese_chess' ? humanColor : opponentColor(humanColor);
+  const aiNextColor = humanColor;
   const finalResolved =
     humanResolved.winner || humanResolved.isDraw
       ? humanResolved
@@ -404,18 +404,25 @@ export async function undoMove(gameId: string) {
   const gameMoves = await db.select().from(moves)
     .where(eq(moves.gameId, gameId))
     .orderBy(desc(moves.moveNumber))
-    .limit(2);
+    .limit(3);
 
   if (gameMoves.length < 2) throw new Error('No moves to undo');
 
-  for (const m of gameMoves) {
+  const movesToDelete = gameMoves.slice(0, 2);
+  for (const m of movesToDelete) {
     await db.delete(moves).where(eq(moves.id, m.id));
   }
 
-  const prevState = JSON.parse(gameMoves[1].boardStateAfter);
-
-  if ('nextColor' in prevState) {
-    prevState.nextColor = prevState.nextColor === 'dark' ? 'light' : 'dark';
+  let prevState: any;
+  if (gameMoves.length >= 3) {
+    prevState = JSON.parse(gameMoves[2].boardStateAfter);
+  } else {
+    const strategy = getStrategy(game.gameType);
+    prevState = strategy.createBoard(
+      game.gameType === 'draughts'
+        ? { boardSize: JSON.parse(game.boardState).size as number }
+        : undefined,
+    );
   }
 
   await db.update(games).set({

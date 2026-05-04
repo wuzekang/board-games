@@ -1,17 +1,17 @@
 import {
-  type ChineseChessBoardState,
-  ChineseChessPieceType,
+  type XiangqiBoardState,
+  XiangqiPieceType,
   PieceColor,
-} from '@board-games/shared/chinese_chess';
+} from '@board-games/shared/xiangqi';
 
-const PIECE_VALUES: Record<ChineseChessPieceType, number> = {
-  [ChineseChessPieceType.KING]: 100000,
-  [ChineseChessPieceType.ROOK]: 900,
-  [ChineseChessPieceType.CANNON]: 450,
-  [ChineseChessPieceType.HORSE]: 400,
-  [ChineseChessPieceType.ELEPHANT]: 200,
-  [ChineseChessPieceType.ADVISOR]: 200,
-  [ChineseChessPieceType.PAWN]: 100,
+const PIECE_VALUES: Record<XiangqiPieceType, number> = {
+  [XiangqiPieceType.KING]: 100000,
+  [XiangqiPieceType.ROOK]: 900,
+  [XiangqiPieceType.CANNON]: 450,
+  [XiangqiPieceType.HORSE]: 400,
+  [XiangqiPieceType.ELEPHANT]: 200,
+  [XiangqiPieceType.ADVISOR]: 200,
+  [XiangqiPieceType.PAWN]: 100,
 };
 
 const KING_PST = [
@@ -105,14 +105,14 @@ const PAWN_PST = [
   [0, 0, 0, 2, 4, 2, 0, 0, 0],
 ];
 
-const PST: Record<ChineseChessPieceType, number[][]> = {
-  [ChineseChessPieceType.KING]: KING_PST,
-  [ChineseChessPieceType.ADVISOR]: ADVISOR_PST,
-  [ChineseChessPieceType.ELEPHANT]: ELEPHANT_PST,
-  [ChineseChessPieceType.HORSE]: HORSE_PST,
-  [ChineseChessPieceType.ROOK]: ROOK_PST,
-  [ChineseChessPieceType.CANNON]: CANNON_PST,
-  [ChineseChessPieceType.PAWN]: PAWN_PST,
+const PST: Record<XiangqiPieceType, number[][]> = {
+  [XiangqiPieceType.KING]: KING_PST,
+  [XiangqiPieceType.ADVISOR]: ADVISOR_PST,
+  [XiangqiPieceType.ELEPHANT]: ELEPHANT_PST,
+  [XiangqiPieceType.HORSE]: HORSE_PST,
+  [XiangqiPieceType.ROOK]: ROOK_PST,
+  [XiangqiPieceType.CANNON]: CANNON_PST,
+  [XiangqiPieceType.PAWN]: PAWN_PST,
 };
 
 function hasCrossedRiver(pos: { row: number; col: number }, color: PieceColor): boolean {
@@ -120,8 +120,8 @@ function hasCrossedRiver(pos: { row: number; col: number }, color: PieceColor): 
   return pos.row >= 5;
 }
 
-export function evaluateChineseChessBoard(
-  board: ChineseChessBoardState,
+export function evaluateXiangqiBoard(
+  board: XiangqiBoardState,
   aiColor: PieceColor,
 ): number {
   let score = 0;
@@ -132,7 +132,7 @@ export function evaluateChineseChessBoard(
     const row = piece.color === PieceColor.DARK ? 9 - piece.position.row : piece.position.row;
     let posBonus = table[row][piece.position.col];
 
-    if (piece.type === ChineseChessPieceType.PAWN && hasCrossedRiver(piece.position, piece.color)) {
+    if (piece.type === XiangqiPieceType.PAWN && hasCrossedRiver(piece.position, piece.color)) {
       posBonus += 50;
     }
 
