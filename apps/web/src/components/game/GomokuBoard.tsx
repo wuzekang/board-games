@@ -88,8 +88,8 @@ export function GomokuBoard({
               onClick={isOccupied || !canInteract ? undefined : () => onIntersectionClick({ row, col })}
               style={{
                 position: 'absolute',
-                left: `${(dc / BOARD_SIZE) * 100}%`,
-                top: `${(dr / BOARD_SIZE) * 100}%`,
+                left: `${((dc + 0.5) / BOARD_SIZE) * 100 - 100 / BOARD_SIZE / 2}%`,
+                top: `${((dr + 0.5) / BOARD_SIZE) * 100 - 100 / BOARD_SIZE / 2}%`,
                 width: `${100 / BOARD_SIZE}%`,
                 height: `${100 / BOARD_SIZE}%`,
                 cursor: isOccupied ? 'default' : canInteract ? 'pointer' : 'default',
@@ -111,8 +111,8 @@ export function GomokuBoard({
               key={stone.id}
               style={{
                 position: 'absolute',
-                left: `${(dc / BOARD_SIZE) * 100}%`,
-                top: `${(dr / BOARD_SIZE) * 100}%`,
+                left: `${((dc + 0.5) / BOARD_SIZE) * 100 - 100 / BOARD_SIZE / 2}%`,
+                top: `${((dr + 0.5) / BOARD_SIZE) * 100 - 100 / BOARD_SIZE / 2}%`,
                 width: `${100 / BOARD_SIZE}%`,
                 height: `${100 / BOARD_SIZE}%`,
                 display: 'flex',
