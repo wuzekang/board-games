@@ -36,10 +36,11 @@ const SOUND_EXT: Record<SoundName, string> = {
   click: 'ogg',
 };
 
-export function playSound(name: SoundName, volume?: number): void {
+export function playSound(name: SoundName, volume?: number, playbackRate?: number): void {
   try {
     const audio = new Audio(`/sounds/${name}.${SOUND_EXT[name]}`);
     audio.volume = volume ?? DEFAULT_VOLUME[name];
+    if (playbackRate) audio.playbackRate = playbackRate;
     audio.play().catch(() => {});
   } catch {}
 }

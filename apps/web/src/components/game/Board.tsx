@@ -195,7 +195,7 @@ function PieceElement({
   const pieceDiv = (
     <div
       ref={outerRef}
-      className={['absolute z-10', isFading ? 'draughts-piece-fading' : ''].filter(Boolean).join(' ')}
+      className={['absolute z-10', isFading ? 'draughts-piece-captured' : ''].filter(Boolean).join(' ')}
       style={outerStyle}
       onClick={() => onPieceClick(piece.position)}
     >
@@ -212,7 +212,7 @@ function PieceElement({
           render={
             <div
               ref={outerRef}
-              className={['absolute z-10', isFading ? 'draughts-piece-fading' : ''].filter(Boolean).join(' ')}
+              className={['absolute z-10', isFading ? 'draughts-piece-captured' : ''].filter(Boolean).join(' ')}
               style={outerStyle}
               onClick={() => onPieceClick(piece.position)}
             />
@@ -291,6 +291,7 @@ export function Board({
             const key = `${row},${col}`;
             const isValidTarget = validTargetSet.has(key);
             const isHighlighted = key === selectedPos;
+            const isFlashing = animState?.flashCells.has(key) ?? false;
             const hasMovablePiece =
               movablePieceIds != null &&
               displayBoard.pieces.some(
@@ -314,7 +315,7 @@ export function Board({
               <div
                 key={key}
                 onClick={() => onCellClick({ row, col })}
-                className={hasMovablePiece ? 'draughts-movable-cell' : ''}
+                className={`${hasMovablePiece ? 'draughts-movable-cell' : ''}${isFlashing ? ' capture-flash-cell' : ''}`}
                 style={{
                   position: 'absolute',
                   left: `${(displayCol / size) * 100}%`,
@@ -447,6 +448,47 @@ export function Board({
                 isProcessing={isProcessing}
               />
             ))}
+
+          {animState?.captureEffects.size && (() => {
+            const particles: React.ReactNode[] = [];
+            const popups: React.ReactNode[] = [];
+            const offsets = [[-20, -15], [20, -10], [-15, 20], [18, 18]];
+            animState.captureEffects.forEach((effect, pieceId) => {
+              const { displayRow, displayCol } = getDisplayPos(effect.position.row, effect.position.col, flipBoard, size);
+              const leftPct = (displayCol / size) * 100;
+              const topPct = (displayRow / size) * 100;
+              const cellPct = 100 / size;
+              const color = effect.pieceColor === PieceColor.DARK ? '#fbbf24' : '#34d399';
+              offsets.forEach(([dx, dy], idx) => {
+                particles.push(
+                  <div
+                    key={`${pieceId}-p${idx}`}
+                    className="capture-particle"
+                    style={{
+                      left: `calc(${leftPct + cellPct / 2}% - 4px)`,
+                      top: `calc(${topPct + cellPct / 2}% - 4px)`,
+                      backgroundColor: color,
+                      ['--dx' as string]: `${dx}px`,
+                      ['--dy' as string]: `${dy}px`,
+                    }}
+                  />,
+                );
+              });
+              popups.push(
+                <div
+                  key={`${pieceId}-score`}
+                  className="capture-score-popup"
+                  style={{
+                    left: `calc(${leftPct + cellPct / 2}% - 10px)`,
+                    top: `calc(${topPct + cellPct / 2}% - 10px)`,
+                  }}
+                >
+                  +{effect.count}
+                </div>,
+              );
+            });
+            return [...particles, ...popups];
+          })()}
 
           {validMoves && validMoves.some((m) => m.type === MoveType.CHAIN_CAPTURE) && (
             <svg

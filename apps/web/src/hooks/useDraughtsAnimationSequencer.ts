@@ -54,9 +54,19 @@ export function useDraughtsAnimationSequencer() {
     } else if (frame.type === 'capture') {
       setAnimState((prev) => {
         if (!prev) return prev;
+        const newFading = new Set(prev.fadingPieceIds);
+        const newEffects = new Map(prev.captureEffects);
+        const newFlash = new Set(prev.flashCells);
+        for (const pos of frame.positions) {
+          newFading.add(pos.pieceId);
+          newEffects.set(pos.pieceId, { position: pos.position, count: frame.captureIndex, pieceColor: pos.pieceColor });
+          newFlash.add(`${pos.position.row},${pos.position.col}`);
+        }
         return {
           ...prev,
-          fadingPieceIds: new Set([...prev.fadingPieceIds, ...frame.pieceIds]),
+          fadingPieceIds: newFading,
+          captureEffects: newEffects,
+          flashCells: newFlash,
         };
       });
       timeoutRef.current = setTimeout(() => {
@@ -64,21 +74,29 @@ export function useDraughtsAnimationSequencer() {
           if (!prev) return prev;
           const newFading = new Set(prev.fadingPieceIds);
           const newRemoved = new Set(prev.removedPieceIds);
+          const newEffects = new Map(prev.captureEffects);
+          const newFlash = new Set(prev.flashCells);
           const newBoard = {
             ...prev.boardSnapshot,
             pieces: prev.boardSnapshot.pieces.filter((p) => {
               if (frame.pieceIds.includes(p.id)) {
                 newFading.delete(p.id);
                 newRemoved.add(p.id);
+                newEffects.delete(p.id);
                 return false;
               }
               return true;
             }),
           };
+          for (const pos of frame.positions) {
+            newFlash.delete(`${pos.position.row},${pos.position.col}`);
+          }
           return {
             ...prev,
             fadingPieceIds: newFading,
             removedPieceIds: newRemoved,
+            captureEffects: newEffects,
+            flashCells: newFlash,
             boardSnapshot: newBoard,
           };
         });
@@ -121,6 +139,8 @@ export function useDraughtsAnimationSequencer() {
         fadingPieceIds: new Set(),
         promotingPieceIds: new Set(),
         removedPieceIds: new Set(),
+        captureEffects: new Map(),
+        flashCells: new Set(),
       });
       seqRef.current = { frames, index: 0, onComplete, onFrame };
       timeoutRef.current = setTimeout(() => processNextFrame(), 0);

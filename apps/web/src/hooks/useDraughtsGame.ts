@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { BoardState, Move, Position } from '@board-games/shared';
 import { PieceColor } from '@board-games/shared';
@@ -26,6 +26,7 @@ export function useDraughtsGame(
   const [localBoard, setLocalBoard] = useState<BoardState | null>(null);
   const { animState, runSequence, clearAnim } = useDraughtsAnimationSequencer();
   const isAnimating = animState !== null;
+  const captureIndexRef = useRef(0);
 
   const makeMoveMutation = useMutation({
     mutationFn: (move: Move) => orpc.makeMove({ gameId: gameId!, move: move as any }),
@@ -46,7 +47,8 @@ export function useDraughtsGame(
       const boardAfterHuman = applyMove(currentBoard, targetMove);
       setLocalBoard(boardAfterHuman);
 
-      const humanFrames = buildDraughtsMoveFrames(targetMove);
+      const humanFrames = buildDraughtsMoveFrames(targetMove, currentBoard);
+      captureIndexRef.current = 0;
       runSequence(humanFrames, currentBoard, () => {
         clearAnim();
 
@@ -58,7 +60,8 @@ export function useDraughtsGame(
               const boardAfterAI = applyMove(boardAfterHuman, aiMove);
               setLocalBoard(boardAfterAI);
 
-              const aiFrames = buildDraughtsMoveFrames(data.aiMove as Move);
+              const aiFrames = buildDraughtsMoveFrames(data.aiMove as Move, boardAfterHuman);
+              captureIndexRef.current = 0;
               runSequence(aiFrames, boardAfterHuman, () => {
                 setLastMove({ from: aiMove.from, to: aiMove.to });
                 clearAnim();
@@ -66,7 +69,11 @@ export function useDraughtsGame(
                 queryClient.invalidateQueries({ queryKey: ['moveHistory', gameId] });
               }, (frame) => {
                 if (frame.type === 'move') playSound('move');
-                if (frame.type === 'capture') playSound('capture');
+                if (frame.type === 'capture') {
+                  const rate = captureIndexRef.current <= 1 ? 1.0 : captureIndexRef.current === 2 ? 1.2 : 1.4;
+                  playSound('capture', undefined, rate);
+                  captureIndexRef.current++;
+                }
                 if (frame.type === 'promote') playSound('promote');
               });
             } else {
@@ -83,7 +90,11 @@ export function useDraughtsGame(
         });
       }, (frame) => {
         if (frame.type === 'move') playSound('move');
-        if (frame.type === 'capture') playSound('capture');
+        if (frame.type === 'capture') {
+          const rate = captureIndexRef.current <= 1 ? 1.0 : captureIndexRef.current === 2 ? 1.2 : 1.4;
+          playSound('capture', undefined, rate);
+          captureIndexRef.current++;
+        }
         if (frame.type === 'promote') playSound('promote');
       });
     },
