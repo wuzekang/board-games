@@ -223,7 +223,16 @@ export function Game() {
           : 'AI 赢了，再试一次！'
     : null;
 
-  const isProcessing = draughts.isPending || chess.isPending || xiangqi.isPending || gomoku.isPending || go.isPending || ludo.isPending || jungle.isPending || undoMutation.isPending || resignMutation.isPending;
+  const activeController =
+    isChess ? chess :
+    isXiangqi ? xiangqi :
+    isGomoku ? gomoku :
+    isGo ? go :
+    isLudo ? ludo :
+    isJungle ? jungle :
+    draughts;
+
+  const isProcessing = activeController.isPending || undoMutation.isPending || resignMutation.isPending;
 
   return (
     <div className="mx-auto flex min-h-full lg:h-full max-w-7xl animate-fade-in px-2 py-2 sm:px-3 sm:py-3">
@@ -359,13 +368,7 @@ export function Game() {
               onNewGame={() => navigate('/')}
               onUndo={() => {
                 undoMutation.mutate();
-                if (isXiangqi) xiangqi.resetSelection();
-                else if (isChess) chess.resetSelection();
-                else if (isGomoku) gomoku.resetLastMove();
-                else if (isGo) go.resetLastMove();
-                else if (isLudo) { }
-                else if (isJungle) jungle.resetSelection();
-                else draughts.resetSelection();
+                activeController.reset?.();
               }}
               onResign={() => resignMutation.mutate()}
               onPass={isGo ? go.handlePass : undefined}

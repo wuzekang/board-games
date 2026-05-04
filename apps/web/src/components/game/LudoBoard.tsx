@@ -98,14 +98,21 @@ export function LudoBoard({
     >
       <rect x={0} y={0} width={SVG_W} height={SVG_H} fill="#FFF8EE" rx={12} />
 
+      <path
+        d={`M${PAD + 6 * S},${PAD} L${PAD + 9 * S},${PAD} L${PAD + 9 * S},${PAD + 6 * S} L${PAD + 15 * S},${PAD + 6 * S} L${PAD + 15 * S},${PAD + 9 * S} L${PAD + 9 * S},${PAD + 9 * S} L${PAD + 9 * S},${PAD + 15 * S} L${PAD + 6 * S},${PAD + 15 * S} L${PAD + 6 * S},${PAD + 9 * S} L${PAD},${PAD + 9 * S} L${PAD},${PAD + 6 * S} L${PAD + 6 * S},${PAD + 6 * S} Z`}
+        fill="#DCB468"
+        stroke="#C4A050"
+        strokeWidth={1}
+      />
+
       {(() => {
         const zones: React.ReactNode[] = [];
         for (let pi = 0; pi < 4; pi++) {
           const z = HANGAR_ZONES[pi as LudoPlayerIndex];
-          const x = PAD + z.colStart * S;
-          const y = PAD + z.rowStart * S;
-          const w = (z.colEnd - z.colStart + 1) * S;
-          const h = (z.rowEnd - z.rowStart + 1) * S;
+          const x = PAD + (z.colStart + 1) * S;
+          const y = PAD + (z.rowStart + 1) * S;
+          const w = (z.colEnd - z.colStart - 1) * S;
+          const h = (z.rowEnd - z.rowStart - 1) * S;
           zones.push(
             <rect
               key={`hz-${pi}`}
@@ -291,17 +298,15 @@ export function LudoBoard({
 
       {(() => {
         const zone: React.ReactNode[] = [];
-        const centerR = 7.5;
-        const centerC = 4.5;
-        const cx = PAD + centerC * S;
-        const cy = PAD + centerR * S;
+        const cx = PAD + 7.5 * S;
+        const cy = PAD + 7.5 * S;
 
         zone.push(
           <rect
             key="goal-bg"
-            x={cx - 3 * S}
+            x={cx - 1.5 * S}
             y={cy - 1.5 * S}
-            width={6 * S}
+            width={3 * S}
             height={3 * S}
             rx={10}
             fill="#FFFBF5"

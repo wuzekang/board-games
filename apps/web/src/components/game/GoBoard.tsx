@@ -35,7 +35,7 @@ export function GoBoard({
   }
 
   const starPoints = STAR_POINTS[size as GoBoardSize] || [];
-  const canInteract = isHumanTurn && !isFinished && !isProcessing;
+  const canInteract = isHumanTurn && !isFinished;
 
   const GRID_W = size - 1;
   const GRID_H = size - 1;

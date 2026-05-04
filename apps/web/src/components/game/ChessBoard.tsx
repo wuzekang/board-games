@@ -99,7 +99,7 @@ export function ChessBoard({
   return (
     <div
       className="rounded-xl shadow-md overflow-hidden"
-      style={{ width: '100%', maxHeight: '100%', aspectRatio: '1 / 1', flexShrink: 0, position: 'relative', opacity: isProcessing ? 0.6 : 1, transition: 'opacity 150ms ease' }}
+      style={{ width: '100%', maxHeight: '100%', aspectRatio: '1 / 1', flexShrink: 0, position: 'relative' }}
     >
       <div style={{ width: '100%', height: '100%', position: 'relative' }}>
         {cells.map(({ row, col }) => {
@@ -142,7 +142,7 @@ export function ChessBoard({
                 height: `${100 / SIZE}%`,
                 background: bgColor,
                 boxSizing: 'border-box',
-                cursor: isProcessing ? 'default' : 'pointer',
+                cursor: 'pointer',
               }}
             >
               {isSelected && (
@@ -273,7 +273,7 @@ export function ChessBoard({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                cursor: isProcessing ? 'default' : 'pointer',
+                cursor: 'pointer',
                 zIndex: 10,
               }}
             >

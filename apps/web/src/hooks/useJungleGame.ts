@@ -1,16 +1,17 @@
-import { useState, useCallback, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useCallback, useRef } from 'react';
 import type { Position } from '@board-games/shared';
 import { PieceColor } from '@board-games/shared';
 import type { JungleBoardState, JungleMove } from '@board-games/shared/jungle';
 import { applyJungleMove, getJungleValidMovesForPiece } from '@board-games/shared/jungle';
-import { orpc } from '../orpc-client';
-import { addToast } from './useToast';
-import { playSound } from '../utils/sounds';
+import { useOptimisticBoard } from './useOptimisticBoard';
+import { usePieceSelection } from './usePieceSelection';
 
-type JungleSelectionState =
-  | { type: 'idle' }
-  | { type: 'pieceSelected'; pieceId: string; validMoves: JungleMove[] };
+function findJunglePieceAt(board: JungleBoardState, pos: Position, color: PieceColor) {
+  return board.pieces.find(
+    (p) => p.position.row === pos.row && p.position.col === pos.col && p.color === color,
+  );
+}
+const getJungleMoveTarget = (m: JungleMove) => m.to;
 
 export function useJungleGame(
   gameId: string | undefined,
@@ -19,98 +20,55 @@ export function useJungleGame(
   isHumanTurn: boolean,
   isFinished: boolean,
 ) {
-  const queryClient = useQueryClient();
-  const [selection, setSelection] = useState<JungleSelectionState>({ type: 'idle' });
   const [lastMove, setLastMove] = useState<{ from: Position; to: Position } | null>(null);
-  const [localBoard, setLocalBoard] = useState<JungleBoardState | null>(null);
 
-  useEffect(() => {
-    if (board) setLocalBoard(board);
-  }, [board]);
-
-  const makeMoveMutation = useMutation({
-    mutationFn: (move: JungleMove) => orpc.makeMove({ gameId: gameId!, move: move as any }),
+  const { localBoard, isPending, executeMove } = useOptimisticBoard<JungleBoardState, JungleMove>({
+    gameId,
+    board,
+    applyMove: applyJungleMove,
+    errorMessage: '走棋失败，请重试',
   });
 
-  const handleCellClick = useCallback(
-    (pos: Position) => {
-      if (!localBoard || !isHumanTurn || isFinished || makeMoveMutation.isPending) return;
-
-      if (selection.type === 'pieceSelected') {
-        const targetMove = selection.validMoves.find(
-          (m) => m.to.row === pos.row && m.to.col === pos.col,
-        );
-        if (targetMove) {
-          setLastMove({ from: targetMove.from, to: targetMove.to });
-          setSelection({ type: 'idle' });
-          const boardBeforeMove = localBoard;
-          setLocalBoard(applyJungleMove(localBoard, targetMove));
-          makeMoveMutation.mutate(targetMove, {
-            onSuccess: (data) => {
-              queryClient.setQueryData(['game', gameId], data.game);
-              playSound(targetMove.capturedPieceId ? 'capture' : 'move');
-              if (data.aiMove) {
-                const aiMove = data.aiMove as unknown as JungleMove;
-                playSound(aiMove.capturedPieceId ? 'capture' : 'move');
-                setLastMove({ from: aiMove.from, to: aiMove.to });
-                setLocalBoard(applyJungleMove(applyJungleMove(boardBeforeMove, targetMove), aiMove));
-              }
-              queryClient.invalidateQueries({ queryKey: ['game', gameId] });
-              queryClient.invalidateQueries({ queryKey: ['moveHistory', gameId] });
-            },
-            onError: () => {
-              setLastMove(null);
-              setSelection({ type: 'idle' });
-              setLocalBoard(boardBeforeMove);
-              addToast('走棋失败，请重试');
-              queryClient.invalidateQueries({ queryKey: ['game', gameId] });
-            },
-          });
-          return;
-        }
-
-        const clickedPiece = localBoard.pieces.find(
-          (p) => p.position.row === pos.row && p.position.col === pos.col && p.color === humanColor,
-        );
-        if (clickedPiece && clickedPiece.id !== selection.pieceId) {
-          const moves = getJungleValidMovesForPiece(localBoard, clickedPiece.id);
-          setSelection({ type: 'pieceSelected', pieceId: clickedPiece.id, validMoves: moves });
-          playSound('click');
-          return;
-        }
-
-        setSelection({ type: 'idle' });
-        return;
-      }
-
-      const clickedPiece = localBoard.pieces.find(
-        (p) => p.position.row === pos.row && p.position.col === pos.col && p.color === humanColor,
-      );
-      if (clickedPiece) {
-        const moves = getJungleValidMovesForPiece(localBoard, clickedPiece.id);
-        setSelection({ type: 'pieceSelected', pieceId: clickedPiece.id, validMoves: moves });
-        playSound('click');
-      }
+  const handleMove = useCallback(
+    (move: JungleMove) => {
+      setLastMove({ from: move.from, to: move.to });
+      executeMove(move, {
+        humanSound: move.capturedPieceId ? 'capture' : 'move',
+        aiSound: (ai) => ai.capturedPieceId ? 'capture' : 'move',
+        onAIMoveReceived: (ai) => setLastMove({ from: ai.from, to: ai.to }),
+        onErrorReset: () => { setLastMove(null); },
+      });
     },
-    [localBoard, isHumanTurn, isFinished, selection, humanColor, makeMoveMutation, queryClient],
+    [executeMove],
   );
 
-  const selectedPieceId = selection.type === 'pieceSelected' ? selection.pieceId : null;
-  const validMoves = selection.type === 'pieceSelected' ? selection.validMoves : [];
+  const onMoveRef = useRef<(m: JungleMove) => void>(() => {});
 
-  const resetSelection = useCallback(() => {
-    setSelection({ type: 'idle' });
-    setLastMove(null);
-    if (board) setLocalBoard(board);
-  }, [board]);
+  const { selectedPieceId, validMoves, handleCellClick, resetSelection } =
+    usePieceSelection<JungleBoardState, JungleMove>({
+      board: localBoard,
+      humanColor,
+      isHumanTurn,
+      isFinished,
+      isPending,
+      getValidMovesForPiece: getJungleValidMovesForPiece,
+      findPieceAt: findJunglePieceAt,
+      getMoveTarget: getJungleMoveTarget,
+      onMove: useCallback((m) => onMoveRef.current(m), []),
+    });
+
+  onMoveRef.current = (move: JungleMove) => {
+    resetSelection();
+    handleMove(move);
+  };
 
   return {
     localBoard,
     selectedPieceId,
     validMoves,
     lastMove,
-    isPending: makeMoveMutation.isPending,
+    isPending,
     handleCellClick,
-    resetSelection,
+    reset: useCallback(() => { resetSelection(); setLastMove(null); }, [resetSelection]),
   };
 }

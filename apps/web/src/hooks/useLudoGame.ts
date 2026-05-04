@@ -123,5 +123,6 @@ export function useLudoGame(
     isPending: rollDiceMutation.isPending || makeMoveMutation.isPending,
     handleRollDice,
     handlePieceClick,
+    reset: useCallback(() => {}, []),
   };
 }

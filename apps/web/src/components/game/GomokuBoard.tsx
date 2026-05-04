@@ -49,7 +49,7 @@ export function GomokuBoard({
     ? new Set(winningLine.map((p) => `${p.row},${p.col}`))
     : null;
 
-  const canInteract = isHumanTurn && !isFinished && !isProcessing;
+  const canInteract = isHumanTurn && !isFinished;
 
   function svgPos(row: number, col: number) {
     const dr = flip ? GRID_H - row : row;

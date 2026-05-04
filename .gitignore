@@ -6,3 +6,9 @@ dist/
 .takumi/
 .playwright-cli/
 *.png
+.venv/
+*.jsonl
+*.ogg
+*.mp3
+*.wav
+tools/

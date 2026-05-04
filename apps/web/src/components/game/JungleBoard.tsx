@@ -108,8 +108,6 @@ export function JungleBoard({
         aspectRatio: `${COLS / ROWS}`,
         flexShrink: 0,
         position: 'relative',
-        opacity: isProcessing ? 0.6 : 1,
-        transition: 'opacity 150ms ease',
       }}
     >
       <svg
@@ -283,7 +281,7 @@ export function JungleBoard({
               width={CELL_SIZE}
               height={CELL_SIZE}
               fill="transparent"
-              style={{ cursor: isProcessing ? 'default' : 'pointer' }}
+              style={{ cursor: 'pointer' }}
               onClick={() => onCellClick({ row: r, col: c })}
             />
           )),

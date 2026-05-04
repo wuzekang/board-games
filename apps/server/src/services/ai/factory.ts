@@ -12,7 +12,7 @@ import { GomokuAI } from './gomoku';
 import { GoAI } from './go';
 import { XiangqiAI } from './xiangqi';
 import { LudoAI } from './ludo';
-import { JungleAI } from './jungle';
+import { JungleMCTS } from './jungle';
 
 export function createDraughtsAI(difficulty: string): AIEngine<BoardState, Move> {
   return new DraughtsAI(difficulty);
@@ -39,5 +39,5 @@ export function createLudoAI(difficulty: string): AIEngine<LudoBoardState, AnyLu
 }
 
 export function createJungleAI(difficulty: string): AIEngine<JungleBoardState, JungleMove> {
-  return new JungleAI(difficulty);
+  return new JungleMCTS(difficulty);
 }
