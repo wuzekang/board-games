@@ -15,7 +15,7 @@ import type { AIEngine } from '../interface';
 const DEPTH_BY_DIFFICULTY: Record<string, number> = {
   easy: 1,
   medium: 2,
-  hard: 4,
+  hard: 3,
 };
 
 export class JungleAI implements AIEngine<JungleBoardState, JungleMove> {

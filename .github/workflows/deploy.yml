@@ -28,11 +28,11 @@ jobs:
 
       - name: Pack artifacts
         run: |
-          mkdir -p /tmp/deploy/server/migrations /tmp/deploy/web
-          cp apps/server/dist/index.js /tmp/deploy/server/
-          cp -r apps/server/src/db/migrations /tmp/deploy/server/migrations
-          cp -r apps/web/dist /tmp/deploy/web/dist
-          cd /tmp/deploy && tar czf /tmp/deploy.tar.gz .
+          mkdir -p deploy/server/migrations deploy/web
+          cp apps/server/dist/index.js deploy/server/
+          cp -r apps/server/src/db/migrations/* deploy/server/migrations/
+          cp -r apps/web/dist deploy/web/dist
+          cd deploy && tar czf ../deploy.tar.gz .
 
       - name: Upload to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -40,7 +40,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: /tmp/deploy.tar.gz
+          source: deploy.tar.gz
           target: /tmp/
 
       - name: Deploy
