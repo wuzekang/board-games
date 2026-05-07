@@ -1,0 +1,43 @@
+[package]
+name = "jungle-self-play"
+version = "0.1.0"
+edition = "2021"
+description = "MCTS self-play data generator for Jungle (斗兽棋)"
+
+[lib]
+name = "jungle_wasm"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "jungle-self-play"
+path = "src/main.rs"
+required-features = ["self_play_bin"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+smallvec = { version = "1.13", features = ["union"] }
+
+rayon = { version = "1.12", optional = true }
+rand = { version = "0.8", features = ["small_rng"], optional = true }
+rand_distr = { version = "0.4", optional = true }
+clap = { version = "4", features = ["derive"], optional = true }
+indicatif = { version = "0.18", optional = true }
+ort = { version = "2.0.0-rc.12", features = ["download-binaries"], optional = true }
+ndarray = { version = "0.17", optional = true }
+
+wasm-bindgen = { version = "0.2", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+
+[features]
+default = []
+self_play_bin = ["rayon", "rand", "rand_distr", "clap", "indicatif", "neural"]
+neural = ["ort", "ndarray"]
+wasm = ["wasm-bindgen", "console_error_panic_hook"]
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+overflow-checks = false

@@ -12,4 +12,8 @@ dist/
 *.mp3
 *.wav
 tools/
+!tools/jungle-self-play/
+!tools/jungle-self-play/src/
+!tools/jungle-self-play/Cargo.toml
+!tools/jungle-self-play/Cargo.lock
 apps/server/src/services/ai/jungle/wasm-pkg/
