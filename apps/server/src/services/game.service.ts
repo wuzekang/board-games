@@ -114,7 +114,7 @@ export async function createGame(input: {
   let currentBoard = board;
   if (!input.humanGoesFirst) {
     const aiColor = opponentColor(humanColor);
-    aiMove = strategy.getAiMove(currentBoard, aiColor, input.difficulty);
+    aiMove = await strategy.getAiMove(currentBoard, aiColor, input.difficulty);
     if (aiMove) {
       currentBoard = strategy.applyMove(currentBoard, aiMove);
       const resolved = strategy.resolveWinner(currentBoard, humanColor);
@@ -210,7 +210,7 @@ async function makeMoveInner(gameId: string, move: AnyMove): Promise<MakeMoveOut
       ludoAiTurns = ludoResult.turns;
     } else {
       const aiColor = opponentColor(humanColor);
-      aiMove = strategy.getAiMove(currentBoard, aiColor, game.aiDifficulty);
+      aiMove = await strategy.getAiMove(currentBoard, aiColor, game.aiDifficulty);
 
       if (aiMove) {
         currentBoard = strategy.applyMove(currentBoard, aiMove);
@@ -304,7 +304,7 @@ async function runLudoAiTurns(
       diceValue: dice,
     };
 
-    const aiMove = strategy.getAiMove(currentBoard, PieceColor.LIGHT, difficulty) as AnyLudoMove | null;
+    const aiMove = await strategy.getAiMove(currentBoard, PieceColor.LIGHT, difficulty) as AnyLudoMove | null;
 
     if (aiMove) {
       currentBoard = strategy.applyMove(currentBoard, aiMove) as LudoBoardState;

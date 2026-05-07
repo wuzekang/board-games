@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Board games (棋类游戏) browser platform. Human vs AI. Built as a pnpm monorepo. Currently supports International Draughts (国际跳棋, 100格/64格), Chess (国际象棋), and Gomoku (五子棋, 15x15).
+Board games (棋类游戏) browser platform. Human vs AI. Built as a pnpm monorepo. Currently supports International Draughts (国际跳棋, 100格/64格), Chess (国际象棋), Gomoku (五子棋, 15x15), Go (围棋), Xiangqi (中国象棋), Jungle (斗兽棋), and Ludo (飞行棋).
 
 ## Architecture
 
@@ -28,15 +28,16 @@ No test runner configured.
 - `@board-games/shared/chess` — Chess rules & types (ChessPieceType, ChessBoardState, ChessMove, createInitialChessBoard, isValidChessMove, applyChessMove, getChessGameResult, isInCheck, etc.)
 - `@board-games/shared/gomoku` — Gomoku rules & types (GomokuStone, GomokuBoardState, GomokuMove, createInitialGomokuBoard, isValidGomokuMove, applyGomokuMove, getGomokuGameResult, etc.)
 - `@board-games/shared/go` — Go rules & types (GoStone, GoBoardState, GoMove, GoScore, createInitialGoBoard, isValidGoMove, applyGoMove, getAllValidGoMoves, getGoGameResult, etc.)
+- `@board-games/shared/jungle` — Jungle rules & types (JunglePiece, JungleBoardState, JungleMove, createInitialJungleBoard, isValidJungleMove, applyJungleMove, getJungleGameResult, etc.)
 - `@board-games/shared/contracts` — Zod API contract schemas
 
-**Important**: Draughts, Chess, Gomoku, and Go have separate, independent type systems. Do not mix `BoardState`/`Move` with `ChessBoardState`/`ChessMove`, `GomokuBoardState`/`GomokuMove`, or `GoBoardState`/`GoMove`. The boundary is the JSON blob in the DB — the server never inspects piece types directly.
+**Important**: Each game has separate, independent type systems. Do not mix `BoardState`/`Move` with `ChessBoardState`/`ChessMove`, `GomokuBoardState`/`GomokuMove`, `GoBoardState`/`GoMove`, or `JungleBoardState`/`JungleMove`. The boundary is the JSON blob in the DB — the server never inspects piece types directly.
 
 ## API Endpoints (POST /rpc/…)
 
-- `createGame` — `{ gameType: 'draughts'|'xiangqi'|'chess'|'gomoku'|'go', boardSize?: 10|8|19|13|9, difficulty: string, humanColor: string, humanGoesFirst: bool }`
+- `createGame` — `{ gameType: 'draughts'|'xiangqi'|'chess'|'gomoku'|'go'|'jungle'|'ludo', boardSize?: 10|8|19|13|9, difficulty: string, humanColor: string, humanGoesFirst: bool }`
 - `getGame` — `{ gameId }`
-- `makeMove` — `{ gameId, move }` (move shape varies by game type — Move for draughts, ChessMove for chess, GomokuMove for gomoku, GoMove for go)
+- `makeMove` — `{ gameId, move }` (move shape varies by game type)
 - `getValidMoves` — `{ gameId, pieceId }`
 - `undoMove` — `{ gameId }`
 - `resignGame` — `{ gameId }`
@@ -48,8 +49,9 @@ No test runner configured.
 - Board stored as JSON string in DB, deserialized via `JSON.parse()`.
 - **Draughts**: `BoardState = { size: 8|10, pieces: Piece[] }`. Piece IDs (`p1`, `p2`…) assigned sequentially.
 - **Chess**: `ChessBoardState = { size: 8, pieces: ChessPiece[], enPassantTarget: Position|null, halfMoveClock: number, fullMoveNumber: number }`. Piece IDs (`cp1`, `cp2`…) assigned sequentially. `hasMoved` flag on each piece tracks castling rights.
-- **Gomoku**: `GomokuBoardState = { size: 15, stones: GomokuStone[], nextColor: PieceColor }`. Stone IDs (`gs1`, `gs2`…) assigned sequentially on `applyGomokuMove`. `nextColor` tracks whose turn (starts DARK/Black). No captures, no piece type differentiation — all stones are equal.
+- **Gomoku**: `GomokuBoardState = { size: 15, stones: GomokuStone[], nextColor: PieceColor }`. Stone IDs (`gs1`, `gs2`…) assigned sequentially on `applyGomokuMove`. `nextColor` tracks whose turn (starts DARK/Black). No captures, no piece type differentiation.
 - **Go**: `GoBoardState = { size: 9|13|19, stones: GoStone[], nextColor: PieceColor, koPoint: Position|null, consecutivePasses: number, capturedByDark: number, capturedByLight: number }`. Stone IDs (`go1`, `go2`…) assigned sequentially. `nextColor` tracks whose turn (starts DARK/Black). `koPoint` enforces Simple Ko rule. `consecutivePasses` triggers game end at 2. Chinese rules (area scoring): komi 7.5 for 19×19, 5.5 otherwise.
+- **Jungle**: `JungleBoardState = { size: 7, rows: 9, pieces: JunglePiece[], nextColor: PieceColor, halfMoveClock: number }`. Piece IDs (`jl1`-`jl8` for light, `jl9`-`jl16` for dark) assigned in board creation order. Pieces have `type` (elephant/lion/tiger/leopard/dog/wolf/cat/rat), `color`, and `position`. River squares at rows 3-5 cols 1-2 & 4-5. Traps weaken enemy pieces to 0 strength. Den is win target.
 
 ## Game Type Dispatch (Server)
 
@@ -62,14 +64,15 @@ Game service uses **Strategy pattern** via `getStrategy(gameType)` from `apps/se
 | `chess` | `ChessStrategy` | `strategies/chess.strategy.ts` |
 | `gomoku` | `GomokuStrategy` | `strategies/gomoku.strategy.ts` |
 | `go` | `GoStrategy(boardSize)` | `strategies/go.strategy.ts` |
+| `jungle` | `JungleStrategy` | `strategies/jungle.strategy.ts` |
 
 Each strategy implements `GameStrategy<B, M>` (defined in `strategies/interface.ts`) with methods: `createBoard`, `isValidMove`, `applyMove`, `getAllValidMoves`, `getValidMovesForPiece`, `resolveWinner`, `buildMoveInsert`, `getAiMove`. The service never contains game-specific if/else — it calls `strategy.method()` uniformly.
 
-AI dispatch uses generic `AIEngine<B, M>` (defined in `services/ai/interface.ts`). Factory functions `createDraughtsAI`/`createChessAI`/`createGomokuAI`/`createGoAI` each return properly typed instances. Strategies internally call these factories in `getAiMove`.
+AI dispatch uses generic `AIEngine<B, M>` (defined in `services/ai/interface.ts`). Factory functions `createDraughtsAI`/`createChessAI`/`createGomokuAI`/`createGoAI`/`createJungleAI` each return properly typed instances. Strategies internally call these factories in `getAiMove`.
 
 ## Draughts Rules (packages/shared/src/draughts/rules.ts)
 
-- **Forced capture**: If any piece of the current color has a capture move, all non-capture moves are invalid. This is enforced globally in `getAllValidMoves()` and `getValidMovesForPiece()`.
+- **Forced capture**: If any piece of the current color has a capture move, all non-capture moves are invalid. Enforced globally in `getAllValidMoves()` and `getValidMovesForPiece()`.
 - **Max capture**: When captures exist, only moves with the maximum number of captured pieces are valid.
 - **King promotion**: Man reaching the far row becomes King. In 100格, promotion stops multi-jump.
 - `isValidMove()` re-validates by recomputing `getAllValidMoves()` and matching on `pieceId`, `to`, and `capturedPieceIds.length`.
@@ -87,8 +90,7 @@ AI dispatch uses generic `AIEngine<B, M>` (defined in `services/ai/interface.ts`
 ## Gomoku Rules (packages/shared/src/gomoku/rules.ts)
 
 - **Placement**: Players alternate placing one stone per turn on any empty intersection. Black (DARK) moves first.
-- **No captures, no piece types**: All stones are equal; `GomokuMove` has only `{ stoneId, to, color }` — no `from`, no `type` beyond `'place'`.
-- **Win condition**: First player to get 5 in a row (horizontal, vertical, or diagonal) wins. 6+ in a row also counts as a win (standard Gomoku, not Renju).
+- **Win condition**: First player to get 5 in a row (horizontal, vertical, or diagonal) wins. 6+ also counts (standard Gomoku, not Renju).
 - **Draw**: If all 225 intersections are filled with no winner, the game is a draw (`drawReason: 'board_full'`).
 - `isValidGomokuMove()` validates: correct turn (`nextColor`), position in bounds, position empty.
 - `applyGomokuMove()` places the stone, assigns canonical `stoneId` = `"gs" + (stones.length + 1)`, flips `nextColor`.
@@ -97,14 +99,8 @@ AI dispatch uses generic `AIEngine<B, M>` (defined in `services/ai/interface.ts`
 ## Gomoku AI (apps/server/src/services/ai/gomoku/)
 
 - **Algorithm**: Minimax with alpha-beta pruning. Depth: easy=1, medium=2, hard=3.
-- **Evaluation**: Piece values + piece-square tables (PST). Endgame detection switches king PST.
-- **Move ordering**: Captures and promotions first for better pruning.
-
-## Gomoku AI (apps/server/src/services/ai/gomoku/)
-
-- **Algorithm**: Minimax with alpha-beta pruning. Depth: easy=1, medium=2, hard=3.
-- **Candidate move pruning**: Only considers empty cells within Manhattan distance 2 of existing stones (reduces branching from ~225 to ~20-40). First move always center (7,7).
-- **Move ordering**: Quick-score heuristic — immediate win > block opponent win > open four > neighbor density + center proximity.
+- **Candidate move pruning**: Only considers empty cells within Manhattan distance 2 of existing stones (~20-40 candidates). First move always center (7,7).
+- **Move ordering**: Immediate win > block opponent win > open four > neighbor density + center proximity.
 - **Evaluation**: Pattern-based scoring (FIVE=1M, OPEN_FOUR=100K, BLOCKED_FOUR=10K, OPEN_THREE=5K, etc.). Net score = AI patterns − opponent patterns.
 
 ## Go Rules (packages/shared/src/go/rules.ts)
@@ -122,12 +118,34 @@ AI dispatch uses generic `AIEngine<B, M>` (defined in `services/ai/interface.ts`
 
 - **Algorithm**: Minimax with alpha-beta pruning. Depth: easy=1, medium=2, hard=3.
 - **Candidate move pruning**: Only considers empty cells within Manhattan distance 2 of existing stones (max 20 candidates). First move always center.
-- **Move ordering**: Quick-score heuristic — captures > center proximity + liberty safety.
+- **Move ordering**: Captures > center proximity + liberty safety.
 - **Evaluation**: Territory flood-fill + captured stone counts. Net score = AI territory/captures − opponent territory/captures.
 
-## First-Move Rule — Critical for Go and Gomoku
+## Jungle Rules (packages/shared/src/jungle/rules.ts)
 
-**Go and Gomoku both enforce `board.nextColor === color` in `isValidMove()`.** Black (DARK) always moves first. If the human chooses white (LIGHT), the AI must move first. The `humanGoesFirst` flag must be `humanColor === 'dark'` for these games — otherwise `board.nextColor (DARK) !== humanColor (LIGHT)` causes all moves to be rejected as "Invalid move". Chess and Draughts do NOT have this issue because their `isValidMove` does not check `nextColor` (turn is enforced by `currentPlayer` in the DB).
+- **Board**: 9×7 grid. River at rows 3-5, cols 1-2 and 4-5. Traps (3 per side) weaken enemy pieces to 0 strength. Dens (1 per side) are win targets — entering opponent's den wins immediately.
+- **Pieces**: 8 per side. Rank hierarchy: Elephant(8) > Lion(7) > Tiger(6) > Leopard(5) > Dog(4) > Wolf(3) > Cat(2) > Rat(1). Higher rank captures lower, except Rat captures Elephant (and Elephant cannot capture Rat).
+- **Movement**: Orthogonal one square. Lion/Tiger can jump over river (horizontally or vertically), blocked by Rat in river. Rat can enter/exit river, other pieces cannot. Pieces in river can only capture other pieces in river (Rat vs Rat).
+- **Traps**: Enemy pieces on your trap squares have strength 0 (any piece can capture them).
+- **Win**: Enter opponent's den OR capture all opponent's pieces.
+- **Draw**: No captures in 100 half-moves → draw. Max 200 moves (server) or 300 (self-play).
+- **JungleMove**: `{ pieceId, from, to, type: 'normal'|'capture', capturedPieceId? }`
+- `isValidJungleMove()` validates: correct turn (`nextColor`), position empty or capturable, river rules, jump rules.
+- `applyJungleMove()` moves piece, removes captured piece, increments `halfMoveClock`, flips `nextColor`.
+
+## Jungle AI (apps/server/src/services/ai/jungle/)
+
+- **Difficulty routing** (`jungle.strategy.ts`): hard → minimax depth 3; easy/medium → neural ONNX inference (currently weak).
+- **minimax.ts**: `JungleAI` class. Alpha-beta with move ordering via `moveOrderScore`. Depth: easy=1, medium=2, hard=3.
+- **mcts.ts**: `JungleMCTS` class. UCB1 selection, random rollout (depth 40). Iterations: easy=200, medium=1000, hard=2000.
+- **neural.ts**: ONNX inference via `onnxruntime-node`. Loads `models/jungle_net.onnx`. Policy → softmax → sample (easy), top-3 (medium), argmax (hard). Falls back to random if model fails.
+- **heuristic.ts**: `evaluateJungleBoard(board, aiColor)` returns numeric score. Components: material (BASE_VALUES) + PST + counter-bonus + trap-control + den-proximity + den-shield + rat-hunt + river-block. `moveOrderScore(move, board, aiColor)` for pruning.
+- **encoding.ts**: `encodeJungleBoard(board)` → Float32Array[20*9*7]. `moveIndex(from, to)` → 0..3968. MAX_MOVE_IDX = 3969.
+- **ONNX model**: `apps/server/models/jungle_net.onnx` — must be inline weights (no external `.onnx.data` file). Input name `board`, shape [1,20,9,7]; outputs `policy_logits` [1,3969] + `value` [1,1].
+
+## First-Move Rule — Critical for Go, Gomoku, and Jungle
+
+**Go, Gomoku, and Jungle all enforce `board.nextColor === color` in `isValidMove()`.** Black (DARK) always moves first. If the human chooses white (LIGHT), the AI must move first. The `humanGoesFirst` flag must be `humanColor === 'dark'` for these games — otherwise `board.nextColor (DARK) !== humanColor (LIGHT)` causes all moves to be rejected as "Invalid move". Chess and Draughts do NOT have this issue because their `isValidMove` does not check `nextColor` (turn is enforced by `currentPlayer` in the DB).
 
 ## Web UI Design System
 
@@ -163,13 +181,14 @@ AI dispatch uses generic `AIEngine<B, M>` (defined in `services/ai/interface.ts`
 
 ## Web UI Key Patterns
 
-- **Home page**: Game type selector → conditional options (board size for draughts and go, color labels differ by game). Six game types: draughts, xiangqi, chess, gomoku, go.
+- **Home page**: Game type selector → conditional options (board size for draughts and go, color labels differ by game). Seven game types: draughts, xiangqi, chess, gomoku, go, ludo, jungle.
 - **Game page**: Detects `gameType` from loaded game data, delegates to per-game hook + renders corresponding Board component.
 - **Per-game hooks** (in `apps/web/src/hooks/`):
   - `useDraughtsGame.ts` — selection state machine + draughts animation + click handler
   - `useChessGame.ts` — selection + promotion dialog + check detection
   - `useGomokuGame.ts` — stone placement + winning line calculation
   - `useGoGame.ts` — stone placement + pass handling + score display
+  - `useJungleGame.ts` — piece selection + click handler (no special animation)
 - **Draughts animation** (draughts-only):
   - `apps/web/src/types/draughtsAnimation.ts` — `DraughtsAnimationState`, `DraughtsAnimationFrame`, `buildDraughtsMoveFrames()`
   - `apps/web/src/hooks/useDraughtsAnimationSequencer.ts` — `useDraughtsAnimationSequencer()`
@@ -183,8 +202,9 @@ AI dispatch uses generic `AIEngine<B, M>` (defined in `services/ai/interface.ts`
 - **XiangqiBoard**: SVG-based, wooden board (#F0D9A0), palace diagonals, 楚河漢界. **Cross-mark indicators** at cannon positions (2,1)(2,7)(7,1)(7,7) and pawn positions (3,0)(3,2)(3,4)(3,6)(3,8)(6,0)(6,2)(6,4)(6,6)(6,8) — edge positions only draw inner half. **Piece style: classic wooden drum disc** — `linearGradient` top-down (`#f0dbb8`→`#c0a070`) simulating flat drum top, no spherical highlight. Red pieces: text `#b91c1c`, inner ring `#b91c1c`. Black pieces: text `#1c1917`, inner ring `#1c1917`. Selected: amber stroke `#d97706` strokeWidth 2.5.
 - **GomokuBoard**: SVG-based Go-style 15×15 board, 40px cell spacing, wood color (#DCB468), star points at (3,3)/(3,11)/(11,3)/(11,11)/(7,7). **Stone colors unified**: black `#2c2520`→`#12100d`, ivory white `#f5f0e8`→`#d4c4a8`. Spherical radial gradient highlight (black 0.08, white 0.45). Single-click placement. Last move dot indicator, winning line red overlay. No toast on occupied cells.
 - **GoBoard**: SVG-based, dynamic cellSize (19路=32px, others=40px), wood color (#DCB468), star points per board size. Go coordinate labels (A-T skipping I). **Stone colors unified** with Gomoku. Single-click placement. Last move indicator dot. Pass button in GameControls. No toast on occupied cells.
+- **JungleBoard**: SVG-based, ~50px cells, wooden board (#DCB468). River squares rendered with blue tint. Trap squares with ✕ marker. Den squares with ◎ marker. Pieces rendered as circular discs with animal emoji/text. Dark pieces: walnut gradient. Light pieces: ivory gradient. Selected piece amber stroke. Valid moves shown as amber dots/hollow circles.
 - **Promotion flow**: `awaitingPromotion` state in selection state machine → shows `<PromotionDialog>` → user picks piece → `makeMove` called with `promotionPiece` set.
-- **AIEngine interface**: `getBestMove(board: B, aiColor: PieceColor): M | null` — all three AIs implement `AIEngine<B, M>`.
+- **AIEngine interface**: `getBestMove(board: B, aiColor: PieceColor): M | null` — all AIs implement `AIEngine<B, M>`.
 
 ### makeMove Mutation — Critical Pattern
 
@@ -193,13 +213,13 @@ AI dispatch uses generic `AIEngine<B, M>` (defined in `services/ai/interface.ts`
 2. Updates `lastMove` from the AI's response (if `data.aiMove` exists)
 3. Calls `queryClient.invalidateQueries({ queryKey: ['game', gameId] })` to trigger an async refetch for freshness
 
-Without `setQueryData`, there's a flash between `invalidateQueries` (schedules async fetch) and the fetch resolving (cache updates). This applies to all games: draughts, chess, xiangqi, gomoku, go, ludo.
+Without `setQueryData`, there's a flash between `invalidateQueries` (schedules async fetch) and the fetch resolving (cache updates). This applies to all games: draughts, chess, xiangqi, gomoku, go, ludo, jungle.
 
 ### LocalBoard — All Games' Client-Side Optimistic Board State
 
 **Problem**: React Query's `invalidateQueries` schedules an async refetch. Between the invalidation and the fetch resolving, the cache is stale. If a component renders during this gap, it shows the pre-move board — causing a visible flash/flicker.
 
-**Solution** (applies to ALL six games — Draughts, Chess, Xiangqi, Gomoku, Go, Ludo):
+**Solution** (applies to ALL seven games — Draughts, Chess, Xiangqi, Gomoku, Go, Ludo, Jungle):
 - Each game hook maintains `localBoard` state, updated optimistically using the corresponding `applyMove` from `@board-games/shared/*`
 - On human move: immediately `setLocalBoard(applyMove(currentBoard, move))` before the mutation fires
 - On AI move received in `onSuccess`: immediately `setLocalBoard(applyMove(applyMove(boardBeforeHumanMove, humanMove), aiMove))` — double-apply to get from pre-human to post-AI state
@@ -238,39 +258,112 @@ Without `setQueryData`, there's a flash between `invalidateQueries` (schedules a
 - **Migration**: Auto-runs on server start via `sqlite.exec()` — detects existing DB to skip already-applied migrations
 - **Dev proxy**: Vite proxies `/rpc` → `localhost:3001` (no CORS needed)
 
-## Jungle (斗兽棋) — New Game
+## Rust Self-Play Tool (`tools/jungle-self-play/`)
 
-### Shared Package
-- `@board-games/shared/jungle` — Types & rules (types.ts, board.ts, rules.ts)
-- **Board**: 9×7, pieces: Elephant(8) > Lion(7) > Tiger(6) > Leopard(5) > Dog(4) > Wolf(3) > Cat(2) > Rat(1). Elephant≠Rat, Rat→Elephant.
-- **Special squares**: River (rows 3-5, cols 1-2 & 4-5), Traps (3 per side), Dens (1 per side).
-- **Win**: Enter opponent's den OR capture all opponent's pieces.
-- **Types**: `JungleBoardState = { size: 9, pieces: JunglePiece[], nextColor: PieceColor }`, `JungleMove = { pieceId, from, to, isCapture, capturedId? }`
+Cargo project for AlphaZero-style self-play data generation.
 
-### Server AI
-- `apps/server/src/services/ai/jungle/` — MCTS implementation
-- **mcts.ts**: `JungleMCTS` class implementing `AIEngine<JungleBoardState, JungleMove>`. Config: iterations (easy=200, medium=1000, hard=2000), c=1.0, rolloutDepth=40.
-- **heuristic.ts**: Board evaluation (material + PST + counter-bonus + trap-control + den-proximity + den-shield + rat-hunt + river-block). Move ordering score for MCTS expansion.
-- **index.ts**: Exports `JungleMCTS`
-- **factory.ts**: `createJungleAI(difficulty)` returns `JungleMCTS` instance
-- **Strategy**: `JungleStrategy.getAiMove()` calls `createJungleAI(difficulty).getBestMove(board, aiColor)`
+### Build & Run
+```bash
+cd tools/jungle-self-play && RUSTFLAGS="-L /Library/Developer/CommandLineTools/usr/lib/clang/17/lib/darwin" cargo build --release
+# Same RUSTFLAGS prefix for cargo run
+cargo run --release --manifest-path tools/jungle-self-play/Cargo.toml -- [args]
+```
+The RUSTFLAGS are required on macOS — homebrew clang returns wrong search dir for `libclang_rt.osx.a`, and ort-sys build.rs uses `clang --print-search-dirs`.
 
-### Rust Self-Play Tool
-- `tools/jungle-self-play/` — Cargo project for MCTS self-play data generation
-- **Source files**: types.rs, constants.rs, rules.rs, heuristic.rs, mcts.rs, self_play.rs, encoding.rs, main.rs
-- **Encoding**: 20-channel board (8 dark piece types + 8 light piece types + turn + river + own-traps + half-move-clock), shape [20, 9, 7]
-- **Move index**: `from.idx() * 63 + to.idx()` (max 63×63 = 3969)
-- **Output**: JSONL with `{board_state, policy_target, value_target, move_number, color_to_move}`
-- **Critical bug fix**: `ensure_expanded` must check `children.len() > 0` not `visits > 0` — otherwise root never expands after first simulate
-- **Another critical bug fix**: `valid_moves_for_piece` must accept `color` parameter instead of checking `board.next_color`, otherwise `all_valid_moves(board, opponent_color)` returns empty
+### Dependencies
+- `ort = { version = "2.0.0-rc.12", features = ["ndarray", "download-binaries"] }` — DO NOT use `load-dynamic` feature
+- `ndarray = "0.17"` — ort 2.0.0-rc.12 depends on 0.17, NOT 0.16
+- `rand_distr = "0.4"`
 
-### Neural Network Training
-- **Training dir**: `tools/jungle-self-play/training/`
-- **Architecture**: Dual-head CNN (ResNet style). Input [20, 9, 7] → Conv → ResBlocks → Policy head (3969 logits) + Value head (tanh [-1, 1])
-- **Model sizes**: Small=2blocks/32ch (551K params), Medium=4blocks/64ch (816K params)
-- **Loss**: Policy=KL-divergence with MCTS visit distribution, Value=MSE, L2 regularization
-- **Training**: convert_data.py (JSONL→numpy), train.py (PyTorch), exports ONNX
-- **ONNX model**: ~7.7KB for small model, suitable for browser inference via onnxruntime-web
+### ort 2.0.0-rc.12 API
+- Create: `Session::builder()?.commit_from_file(path)?`
+- Run: `session.run(ort::inputs!["board" => TensorRef::from_array_view(input_array.view())?]?)?` — MUST use `.view()` for ndarray
+- Extract: `outputs[0].try_extract_tensor::<f32>()?` returns `(&Shape, &[f32])`
+- `Session` needs `&mut self`, use `Arc<Mutex<Session>>` for thread sharing
+- Input name is `board` (not `float_input`) in iter3+ models
+
+### Source Files
+- **types.rs**: Board/piece/move types
+- **constants.rs**: Ranks, river positions, trap/den squares
+- **rules.rs**: Move generation, validation, application
+- **heuristic.rs**: `evaluate_board(board, color)` (material + PST + den-proximity + den-shield + trap-control + rat-hunt + river-block + mobility), `move_order_score()` for pruning
+- **mcts.rs**: Dual-mode MCTS — UCB1 random-rollout mode + AlphaZero PUCT mode
+- **self_play.rs**: Game loop, data collection, JSONL output
+- **encoding.rs**: `encode_board(board)` → [20, 9, 7] float32 array. `move_index(from, to)` = `from_idx * 63 + to_idx` (max 3969)
+- **neural.rs**: ONNX inference wrapper using ort
+- **main.rs**: CLI — `--mode <minimax|neural>`, `--games N`, `--mcts-iterations M`, `--temperature T`, `--threads N`, `--model <path>`, `--output <path>`
+
+### AlphaZero MCTS (mcts.rs)
+- PUCT: Q + c_puct * P * sqrt(N_parent) / (1 + N), c_puct = 1.5
+- Dirichlet noise: α = 0.3, weight = 0.25 (root only)
+- Temperature: first 10 moves τ = 1.0, then τ = 0 (argmax)
+- Default 100 simulations per step
+- **Critical bugs fixed**: (1) `ensure_expanded` must check `children.len() > 0` not `visits > 0`. (2) `valid_moves_for_piece` must accept `color` param, not read `board.next_color`.
+
+### Value Target
+Uses `evaluate_board` heuristic + sigmoid instead of terminal game result:
+```
+value = 2.0 / (1.0 + exp(-score / SCALE)) - 1.0
+```
+Score clamped to ±10000 before sigmoid.
+
+Sigmoid SCALE evolution:
+- SCALE=500: too steep, 99% values saturate at ±1
+- SCALE=3000: still too steep, values in [-0.55, 0.55]
+- SCALE=8000: current best, reasonable middle-range distribution
+
+## Neural Network Training (`tools/jungle-self-play/training/`)
+
+Python venv at `.venv/`. PyTorch ResNet dual-head model.
+
+### Architecture
+- Input: `[1, 20, 9, 7]` float32
+- Backbone: Conv2d(20, channels) → N ResBlocks → Conv2d
+- Policy head: Conv2d → Linear(3969) logits
+- Value head: Conv2d → Linear(1) with tanh
+- Sizes: Small=2blocks/32ch (551K), Medium=4blocks/64ch (816K)
+
+### Loss
+- Policy: KL-divergence with MCTS visit distribution
+- Value: MSE
+- L2 regularization
+- `value_weight` parameter (default 1.0, currently using 5.0)
+
+### Scripts
+- `convert_data.py`: JSONL → numpy arrays; `--merge` to combine multiple JSONL files
+- `train.py`: `--data`, `--output-dir`, `--epochs`, `--batch-size`, `--lr`, `--blocks`, `--channels`, `--value-weight`
+
+### ONNX Export
+Must produce inline weights (no external `.onnx.data`):
+```python
+onnx.save_model(model, path, save_as_external_data=False)
+# Then reload and re-save to fully inline:
+onnx.save(onnx.load(path, load_external_data=True), path)
+```
+
+### Data Quality Issues
+1. AlphaZero self-play with weak model → 97% draws (300-move limit), value=0, no learning signal
+2. Minimax with high temperature (50.0) → policy too diffuse
+3. `eval_to_value` sigmoid scale too small → value saturation at ±1, loss → 0
+4. Old JSONL data cannot be remapped to new sigmoid — must regenerate
+
+### Current Best Model
+`training/models/iter3/jungle_net.onnx` — 4 blocks, 64 channels, 816K params, inline weights ~3.2MB
+
+### Training Data
+- `data/minimax_iter3.jsonl` (76K samples, scale=8000)
+- `data/alphazero_iter2.jsonl` (11K samples, scale=3000, partially corrupted)
+- `data/minimax_iter4_lt.jsonl` (in progress, temp=0.5, scale=8000)
+
+### AlphaZero Iteration Progress
+- **Core problem**: Weak neural model → poor MCTS guidance → 97% draws → value信号全0
+- **Iterations**:
+  - iter1 (alphazero, 100 games, scale=500): 97% draws, value全0 → unusable
+  - iter2 (minimax temp=50 + alphazero, scale=3000, vw=1.0): value in [-0.55, 0.55], value head output always ~0.19
+  - iter3 (minimax temp=50 + alphazero, scale=8000, vw=5.0): value loss ~0.0006 still too low, value head still weak
+  - iter4 (IN PROGRESS): low-temp minimax (temp=0.5) data generation running
+- **Hard mode fallback**: Reverted to minimax depth 3 because neural AI is too weak (moves pieces toward own den)
+- **Key insight**: Value head needs much stronger signal. Options: (a) value_weight >> 5.0, (b) tanh-bounded value with larger range, (c) cross-entropy on quantized value buckets
 
 ## Known Issues
 

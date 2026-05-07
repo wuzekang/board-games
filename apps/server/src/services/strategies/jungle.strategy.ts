@@ -8,8 +8,12 @@ import {
   applyJungleMove,
   getJungleGameResult,
 } from '@board-games/shared/jungle';
-import { createJungleAI } from '../ai/factory';
+import { getNeuralMove } from '../ai/jungle/neural';
+import { JungleAI } from '../ai/jungle/minimax';
+import { getWasmMove, warmUpWasm } from '../ai/jungle/wasm-minimax';
 import type { GameStrategy, WinResult, MoveInsertPayload } from './interface';
+
+warmUpWasm();
 
 export class JungleStrategy implements GameStrategy<JungleBoardState, JungleMove> {
   createBoard(): JungleBoardState {
@@ -51,8 +55,13 @@ export class JungleStrategy implements GameStrategy<JungleBoardState, JungleMove
     };
   }
 
-  getAiMove(board: JungleBoardState, aiColor: PieceColor, difficulty: string): JungleMove | null {
-    const ai = createJungleAI(difficulty);
-    return ai.getBestMove(board, aiColor);
+  async getAiMove(board: JungleBoardState, aiColor: PieceColor, difficulty: string): Promise<JungleMove | null> {
+    if (difficulty === 'hard') {
+      const wasmMove = await getWasmMove(board, aiColor, difficulty);
+      if (wasmMove !== null) return wasmMove;
+      const ai = new JungleAI('hard');
+      return ai.getBestMove(board, aiColor);
+    }
+    return getNeuralMove(board, aiColor, difficulty);
   }
 }

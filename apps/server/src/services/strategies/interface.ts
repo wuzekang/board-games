@@ -24,5 +24,5 @@ export interface GameStrategy<B, M> {
   getValidMovesForPiece(board: B, pieceId: string): M[];
   resolveWinner(board: B, currentColor: PieceColor): WinResult;
   buildMoveInsert(move: M, boardAfter: B): MoveInsertPayload;
-  getAiMove(board: B, aiColor: PieceColor, difficulty: string): M | null;
+  getAiMove(board: B, aiColor: PieceColor, difficulty: string): M | null | Promise<M | null>;
 }

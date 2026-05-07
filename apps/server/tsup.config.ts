@@ -9,5 +9,5 @@ export default defineConfig({
   clean: true,
   bundle: true,
   noExternal: ['@board-games/shared', 'drizzle-orm'],
-  external: ['better-sqlite3'],
+  external: ['better-sqlite3', 'onnxruntime-node'],
 });

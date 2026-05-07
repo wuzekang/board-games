@@ -3,10 +3,15 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { RPCHandler } from '@orpc/server/fetch';
 import { router } from './routers';
+import { warmUp } from './services/ai/jungle/neural';
+import { warmUpWasm } from './services/ai/jungle/wasm-minimax';
 import path from 'path';
 import fs from 'fs';
 
 const app = new Hono();
+
+warmUp().catch(() => {});
+warmUpWasm();
 
 const rpcHandler = new RPCHandler(router);
 
