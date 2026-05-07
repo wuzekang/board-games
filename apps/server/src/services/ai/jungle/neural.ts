@@ -1,4 +1,3 @@
-import { InferenceSession, Tensor } from 'onnxruntime-node';
 import type { PieceColor } from '@board-games/shared';
 import {
   type JungleBoardState,
@@ -9,14 +8,22 @@ import { encodeJungleBoard, moveIndex, MAX_MOVE_IDX } from './encoding';
 
 const MODEL_PATH = 'models/jungle_net.onnx';
 
-let globalSession: InferenceSession | null = null;
-let sessionLoading: Promise<InferenceSession> | null = null;
+type InferenceSessionType = import('onnxruntime-node').InferenceSession;
+type TensorType = import('onnxruntime-node').Tensor;
 
-async function getSession(): Promise<InferenceSession> {
+let globalSession: InferenceSessionType | null = null;
+let sessionLoading: Promise<InferenceSessionType> | null = null;
+
+async function loadOrt(): Promise<typeof import('onnxruntime-node')> {
+  return import('onnxruntime-node');
+}
+
+async function getSession(): Promise<InferenceSessionType> {
   if (globalSession) return globalSession;
   if (sessionLoading) return sessionLoading;
 
-  sessionLoading = InferenceSession.create(MODEL_PATH, {
+  const ort = await loadOrt();
+  sessionLoading = ort.InferenceSession.create(MODEL_PATH, {
     executionProviders: ['cpu'],
     graphOptimizationLevel: 'all',
   });
@@ -70,8 +77,9 @@ export async function getNeuralMove(
   }
 
   try {
+    const ort = await loadOrt();
     const encoded = encodeJungleBoard(board);
-    const inputTensor = new Tensor('float32', encoded, [1, 20, 9, 7]);
+    const inputTensor = new ort.Tensor('float32', encoded, [1, 20, 9, 7]);
 
     const results = await session.run(
       { [session.inputNames[0]]: inputTensor },

@@ -43,10 +43,11 @@ jobs:
 
       - name: Pack artifacts
         run: |
-          mkdir -p deploy/server/migrations deploy/server/wasm-pkg deploy/web
+          mkdir -p deploy/server/migrations deploy/server/wasm-pkg deploy/server/models deploy/web
           cp apps/server/dist/index.js deploy/server/
           cp -r apps/server/src/services/ai/jungle/wasm-pkg deploy/server/wasm-pkg
           cp -r apps/server/src/db/migrations/* deploy/server/migrations/
+          cp apps/server/models/jungle_net.onnx deploy/server/models/
           cp -r apps/web/dist deploy/web/dist
           cd deploy && tar czf ../deploy.tar.gz .
 
@@ -71,5 +72,5 @@ jobs:
             tar xzf /tmp/deploy.tar.gz
             rm -f /tmp/deploy.tar.gz
             cd /home/ubuntu/board-games/server
-            npm install better-sqlite3
+            npm install better-sqlite3 onnxruntime-node
             sudo systemctl restart board-games

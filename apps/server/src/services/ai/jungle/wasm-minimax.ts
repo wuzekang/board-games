@@ -1,18 +1,34 @@
 import type { JungleBoardState, JungleMove } from '@board-games/shared/jungle';
 import type { PieceColor } from '@board-games/shared';
 import { createRequire } from 'module';
+import path from 'path';
+import fs from 'fs';
 
 const DEPTH: Record<string, number> = { easy: 1, medium: 2, hard: 3 };
 
 let wasm: { get_best_move(board_json: string, ai_color: string, depth: number): string | undefined } | null = null;
 let loadAttempted = false;
 
+function resolveWasmPath(): string {
+  const candidates = [
+    path.resolve(import.meta.dirname, 'wasm-pkg'),
+    path.resolve(import.meta.dirname, '../../src/services/ai/jungle/wasm-pkg'),
+    path.resolve(process.cwd(), 'wasm-pkg'),
+  ];
+  for (const dir of candidates) {
+    const jsPath = path.join(dir, 'jungle_wasm.js');
+    if (fs.existsSync(jsPath)) return jsPath;
+  }
+  throw new Error('wasm-pkg/jungle_wasm.js not found in any candidate path');
+}
+
 async function ensureWasm(): Promise<void> {
   if (loadAttempted) return;
   loadAttempted = true;
   try {
-    const require = createRequire(import.meta.url);
-    wasm = require('./wasm-pkg/jungle_wasm.js');
+    const jsPath = resolveWasmPath();
+    const require = createRequire(jsPath);
+    wasm = require(jsPath);
   } catch (err) {
     console.warn('[jungle-wasm] load failed, using TS fallback:', err);
   }
