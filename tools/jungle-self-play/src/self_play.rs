@@ -6,9 +6,9 @@ use crate::mcts::{MctsArena, MctsConfig};
 use crate::neural::get_session_for_color;
 use crate::rules::{all_valid_moves, apply_move, get_game_result};
 use crate::types::{Board, Color, GameResult, Move, Piece, PieceType, Pos};
-use crate::constants::{is_river, is_dark_trap, is_light_trap, ORTHO, opponent_den};
+use crate::constants::{is_river, is_dark_trap, is_light_trap, ORTHO, opponent_den, manhattan};
+#[cfg(feature = "self_play_bin")]
 use std::collections::HashMap;
-
 #[cfg(feature = "self_play_bin")]
 pub struct PositionRecord {
     pub board: Board,
@@ -49,6 +49,14 @@ pub fn get_heuristic(version: &str) -> HeuristicFns {
             move_order: crate::heuristic_v3::move_order_score,
             use_quiescence: true,
             use_tt: false,
+            q_depth: 4,
+            extend_threats: false,
+        },
+        "v4" => HeuristicFns {
+            evaluate: crate::heuristic_v4::evaluate_board,
+            move_order: crate::heuristic_v4::move_order_score,
+            use_quiescence: true,
+            use_tt: true,
             q_depth: 4,
             extend_threats: false,
         },
@@ -534,6 +542,15 @@ fn minimax(
                 }
             }
         }
+        if ext == 0 {
+            let own_den_pos = crate::constants::own_den(color);
+            for piece in board.pieces.iter().flatten() {
+                if piece.color != color && manhattan(piece.pos, own_den_pos) <= 2 {
+                    ext = 1;
+                    break;
+                }
+            }
+        }
         ext
     } else {
         0
@@ -719,7 +736,7 @@ pub(crate) fn minimax_v3(
 
 
 pub fn minimax_root_wasm(board: &Board, color: Color, depth: i32) -> Option<Move> {
-    let h = get_heuristic("v3");
+    let h = get_heuristic("v4");
     let moves = all_valid_moves(board, color);
     if moves.is_empty() {
         return None;

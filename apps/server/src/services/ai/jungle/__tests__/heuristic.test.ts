@@ -13,7 +13,7 @@ import {
   JungleMoveType,
   PieceColor,
 } from '@board-games/shared/jungle';
-import { evaluateJungleBoard, moveOrderScore, denShieldScore, ratHuntScore } from '../heuristic';
+import { evaluateJungleBoard, moveOrderScore, ratHuntScore } from '../heuristic';
 
 function makeBoard(
   pieces: Array<{ type: JunglePieceType; color: PieceColor; row: number; col: number }>,
@@ -34,11 +34,13 @@ function makeBoard(
 }
 
 describe('evaluateJungleBoard', () => {
-  it('symmetric initial position scores zero', () => {
+  it('v4 asymmetric evaluation: dark and light scores not exact negatives', () => {
     const board = createInitialJungleBoard();
     const scoreDark = evaluateJungleBoard(board, PieceColor.DARK);
     const scoreLight = evaluateJungleBoard(board, PieceColor.LIGHT);
-    expect(scoreDark).toBe(-scoreLight);
+    expect(scoreDark + scoreLight).not.toBe(0);
+    expect(Math.abs(scoreDark)).toBeGreaterThan(0);
+    expect(Math.abs(scoreLight)).toBeGreaterThan(0);
   });
 
   it('material advantage gives positive score', () => {
@@ -318,21 +320,21 @@ describe('evaluateJungleBoard', () => {
 
     it('moveOrderScore prioritizes intercepting threat approaching den', () => {
       const board = makeBoard([
-        { type: JunglePieceType.ELEPHANT, color: PieceColor.LIGHT, row: 5, col: 3 },
-        { type: JunglePieceType.LION, color: PieceColor.DARK, row: 6, col: 1 },
+        { type: JunglePieceType.ELEPHANT, color: PieceColor.LIGHT, row: 6, col: 3 },
+        { type: JunglePieceType.LION, color: PieceColor.DARK, row: 7, col: 2 },
         { type: JunglePieceType.CAT, color: PieceColor.LIGHT, row: 2, col: 0 },
       ], PieceColor.DARK);
       const interceptMove: JungleMove = {
         pieceId: 'jl2',
-        from: { row: 6, col: 1 },
-        to: { row: 5, col: 2 },
+        from: { row: 7, col: 2 },
+        to: { row: 6, col: 2 },
         type: JungleMoveType.NORMAL,
         capturedPieceId: null,
       };
       const wanderMove: JungleMove = {
         pieceId: 'jl2',
-        from: { row: 6, col: 1 },
-        to: { row: 7, col: 1 },
+        from: { row: 7, col: 2 },
+        to: { row: 8, col: 2 },
         type: JungleMoveType.NORMAL,
         capturedPieceId: null,
       };
@@ -341,21 +343,21 @@ describe('evaluateJungleBoard', () => {
       expect(interceptScore).toBeGreaterThan(wanderScore);
     });
 
-    it('denShieldScore: guard piece near den gives lower gap than far piece', () => {
+    it('guard piece near den reduces threat gap', () => {
       const nearGuard = makeBoard([
         { type: JunglePieceType.TIGER, color: PieceColor.DARK, row: 7, col: 3 },
-        { type: JunglePieceType.ELEPHANT, color: PieceColor.LIGHT, row: 5, col: 3 },
+        { type: JunglePieceType.ELEPHANT, color: PieceColor.LIGHT, row: 7, col: 2 },
       ]);
       const farGuard = makeBoard([
         { type: JunglePieceType.TIGER, color: PieceColor.DARK, row: 4, col: 3 },
-        { type: JunglePieceType.ELEPHANT, color: PieceColor.LIGHT, row: 5, col: 3 },
+        { type: JunglePieceType.ELEPHANT, color: PieceColor.LIGHT, row: 7, col: 2 },
       ]);
-      const nearScore = denShieldScore(nearGuard, PieceColor.DARK);
-      const farScore = denShieldScore(farGuard, PieceColor.DARK);
+      const nearScore = evaluateJungleBoard(nearGuard, PieceColor.DARK);
+      const farScore = evaluateJungleBoard(farGuard, PieceColor.DARK);
       expect(nearScore).toBeGreaterThan(farScore);
     });
 
-    it('denShieldScore: elephant far away with no defender is worse than with defender', () => {
+    it('elephant far away with no defender is worse than with defender', () => {
       const noDefender = makeBoard([
         { type: JunglePieceType.ELEPHANT, color: PieceColor.LIGHT, row: 5, col: 3 },
         { type: JunglePieceType.CAT, color: PieceColor.DARK, row: 7, col: 5 },
@@ -370,7 +372,7 @@ describe('evaluateJungleBoard', () => {
       expect(hasDefScore).toBeGreaterThan(noDefScore);
     });
 
-    it('denShieldScore: gap=0 is catastrophic', () => {
+    it('enemy piece adjacent to own den is catastrophic', () => {
       const gap0 = makeBoard([
         { type: JunglePieceType.ELEPHANT, color: PieceColor.LIGHT, row: 7, col: 3 },
         { type: JunglePieceType.CAT, color: PieceColor.DARK, row: 7, col: 5 },

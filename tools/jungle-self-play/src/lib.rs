@@ -5,6 +5,7 @@ pub mod heuristic;
 pub mod heuristic_v1;
 pub mod heuristic_v2;
 pub mod heuristic_v3;
+pub mod heuristic_v4;
 pub mod self_play;
 
 #[cfg(feature = "neural")]

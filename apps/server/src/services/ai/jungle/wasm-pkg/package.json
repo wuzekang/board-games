@@ -1,0 +1,12 @@
+{
+  "name": "jungle-self-play",
+  "description": "MCTS self-play data generator for Jungle (斗兽棋)",
+  "version": "0.1.0",
+  "files": [
+    "jungle_wasm_bg.wasm",
+    "jungle_wasm.js",
+    "jungle_wasm.d.ts"
+  ],
+  "main": "jungle_wasm.js",
+  "types": "jungle_wasm.d.ts"
+}
