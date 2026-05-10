@@ -119,6 +119,7 @@ pub struct Board {
     pub grid: [u8; 63],
     pub next_color: Color,
     pub half_move_clock: u16,
+    pub hash: u64,
 }
 
 impl Board {
@@ -158,6 +159,7 @@ impl Board {
             grid: [EMPTY; 63],
             next_color: self.next_color,
             half_move_clock: self.half_move_clock,
+            hash: 0,
         };
         for (i, piece_opt) in self.pieces.iter().enumerate() {
             if let Some(p) = piece_opt {
@@ -182,6 +184,7 @@ impl Board {
             grid: [EMPTY; 63],
             next_color: Color::Dark,
             half_move_clock: 0,
+            hash: 0,
         };
 
         let light_init: [(PieceType, u8, u8); 8] = [

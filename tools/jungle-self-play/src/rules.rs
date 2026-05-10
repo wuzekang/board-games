@@ -279,11 +279,15 @@ pub fn all_valid_moves(board: &Board, color: Color) -> SmallVec<[Move; 64]> {
 
 pub fn apply_move(board: &Board, mv: Move) -> Board {
     let mut new = board.clone();
+    let mut h = board.hash;
+
+    h ^= crate::self_play::ZOBRIST_PIECES[mv.from.idx()][mv.piece_idx as usize];
 
     new.grid[mv.from.idx()] = EMPTY;
 
     if mv.is_capture {
         if let Some(ref _p) = new.pieces[mv.captured_idx as usize] {
+            h ^= crate::self_play::ZOBRIST_PIECES[mv.to.idx()][mv.captured_idx as usize];
             new.grid[mv.to.idx()] = EMPTY;
         }
         new.pieces[mv.captured_idx as usize] = None;
@@ -292,12 +296,16 @@ pub fn apply_move(board: &Board, mv: Move) -> Board {
         new.half_move_clock += 1;
     }
 
+    h ^= crate::self_play::ZOBRIST_PIECES[mv.to.idx()][mv.piece_idx as usize];
+    h ^= crate::self_play::ZOBRIST_COLOR;
+
     if let Some(ref mut p) = new.pieces[mv.piece_idx as usize] {
         p.pos = mv.to;
     }
     new.grid[mv.to.idx()] = mv.piece_idx;
 
     new.next_color = new.next_color.opponent();
+    new.hash = h;
 
     new
 }

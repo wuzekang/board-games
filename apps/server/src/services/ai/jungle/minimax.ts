@@ -125,34 +125,64 @@ export class JungleAI implements AIEngine<JungleBoardState, JungleMove> {
     const moves = getAllJungleValidMoves(board, aiColor);
     if (moves.length === 0) return null;
 
-    const depth = DEPTH_BY_DIFFICULTY[this.difficulty] ?? 2;
+    const maxDepth = DEPTH_BY_DIFFICULTY[this.difficulty] ?? 2;
     const humanColor =
       aiColor === SharedPieceColor.DARK ? SharedPieceColor.LIGHT : SharedPieceColor.DARK;
 
-    const sorted = [...moves].sort(
-      (a, b) => moveOrderScore(b, board, aiColor) - moveOrderScore(a, board, aiColor),
-    );
+    const oppDen = aiColor === SharedPieceColor.DARK
+      ? { row: 0, col: 3 }
+      : { row: 8, col: 3 };
+    const instantWin = moves.find((m) => m.to.row === oppDen.row && m.to.col === oppDen.col);
+    if (instantWin) return instantWin;
 
-    let bestMove = sorted[0];
-    let bestScore = -Infinity;
+    let bestMove = moves[0];
 
-    for (const move of sorted) {
-      const newBoard = applyJungleMove(board, move);
-      const score = this.minimax(
-        newBoard,
-        depth - 1,
-        -Infinity,
-        Infinity,
-        true,
-        aiColor,
-        humanColor,
+    for (let d = 1; d <= maxDepth; d++) {
+      const sorted = [...moves].sort(
+        (a, b) => moveOrderScore(b, board, aiColor) - moveOrderScore(a, board, aiColor),
       );
-      if (score > bestScore) {
-        bestScore = score;
-        bestMove = move;
+
+      let bestScore = -Infinity;
+
+      for (let i = 0; i < sorted.length; i++) {
+        const move = sorted[i];
+        const newBoard = applyJungleMove(board, move);
+        const score = i === 0
+          ? this.minimax(newBoard, d - 1, -Infinity, Infinity, true, aiColor, humanColor)
+          : this.pvsProbe(newBoard, d - 1, -Infinity, bestScore, true, aiColor, humanColor, bestScore);
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = move;
+        }
       }
     }
+
     return bestMove;
+  }
+
+  private pvsProbe(
+    board: JungleBoardState,
+    depth: number,
+    alpha: number,
+    beta: number,
+    isHumanTurn: boolean,
+    aiColor: SharedPieceColor,
+    humanColor: SharedPieceColor,
+    currentBest: number,
+  ): number {
+    if (isHumanTurn) {
+      const v = this.minimax(board, depth, beta - 1, beta, isHumanTurn, aiColor, humanColor);
+      if (v < beta && v > alpha) {
+        return this.minimax(board, depth, alpha, v, isHumanTurn, aiColor, humanColor);
+      }
+      return v;
+    } else {
+      const v = this.minimax(board, depth, alpha, alpha + 1, isHumanTurn, aiColor, humanColor);
+      if (v > alpha && v < beta) {
+        return this.minimax(board, depth, v, beta, isHumanTurn, aiColor, humanColor);
+      }
+      return v;
+    }
   }
 
   private minimax(
@@ -184,16 +214,41 @@ export class JungleAI implements AIEngine<JungleBoardState, JungleMove> {
 
     if (isHumanTurn) {
       let minEval = Infinity;
-      for (const move of sorted) {
-        const val = this.minimax(
-          applyJungleMove(board, move),
-          depth - 1,
-          alpha,
-          beta,
-          false,
-          aiColor,
-          humanColor,
-        );
+      for (let i = 0; i < sorted.length; i++) {
+        const move = sorted[i];
+        let val: number;
+        if (i === 0) {
+          val = this.minimax(
+            applyJungleMove(board, move),
+            depth - 1,
+            alpha,
+            beta,
+            false,
+            aiColor,
+            humanColor,
+          );
+        } else {
+          val = this.minimax(
+            applyJungleMove(board, move),
+            depth - 1,
+            beta - 1,
+            beta,
+            true,
+            aiColor,
+            humanColor,
+          );
+          if (val < beta && val > alpha) {
+            val = this.minimax(
+              applyJungleMove(board, move),
+              depth - 1,
+              alpha,
+              val,
+              true,
+              aiColor,
+              humanColor,
+            );
+          }
+        }
         minEval = Math.min(minEval, val);
         beta = Math.min(beta, val);
         if (beta <= alpha) break;
@@ -201,16 +256,41 @@ export class JungleAI implements AIEngine<JungleBoardState, JungleMove> {
       return minEval;
     } else {
       let maxEval = -Infinity;
-      for (const move of sorted) {
-        const val = this.minimax(
-          applyJungleMove(board, move),
-          depth - 1,
-          alpha,
-          beta,
-          true,
-          aiColor,
-          humanColor,
-        );
+      for (let i = 0; i < sorted.length; i++) {
+        const move = sorted[i];
+        let val: number;
+        if (i === 0) {
+          val = this.minimax(
+            applyJungleMove(board, move),
+            depth - 1,
+            alpha,
+            beta,
+            true,
+            aiColor,
+            humanColor,
+          );
+        } else {
+          val = this.minimax(
+            applyJungleMove(board, move),
+            depth - 1,
+            alpha,
+            alpha + 1,
+            false,
+            aiColor,
+            humanColor,
+          );
+          if (val > alpha && val < beta) {
+            val = this.minimax(
+              applyJungleMove(board, move),
+              depth - 1,
+              val,
+              beta,
+              false,
+              aiColor,
+              humanColor,
+            );
+          }
+        }
         maxEval = Math.max(maxEval, val);
         alpha = Math.max(alpha, val);
         if (beta <= alpha) break;

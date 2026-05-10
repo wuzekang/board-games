@@ -4,6 +4,73 @@
 
 持续优化斗兽棋 AI 的评估函数和搜索算法，通过自对弈 PK 验证每一轮改进。
 
+## v1 → v4 完整演变历程
+
+### v1：基线版本（平局率~21%）
+
+最基础的评估函数：piece_value + 简单den_proximity + PST。搜索为纯minimax + alpha-beta，无quiescence，无TT。
+
+- **核心问题**：平局率高达~21%，因为evaluate信号弱、搜索浅，大量对局在300步内无法分出胜负
+- **PK基线**：v1 vs v1时，dark先手~53-54%，light后手~31-33%，平局~7%
+
+### v2：搜索算法突破（胜率56.1% vs v1，平局率→~3%）
+
+**核心突破**：不在评估函数上做文章，而是改进搜索算法——加入Quiescence Search消除水平线效应。
+
+1. **吃子走法延伸**：depth=0后不立即返回eval，继续搜索吃子走法
+2. **逃走延伸（Evasion）**：己方棋子被威胁时延伸逃走走法，对light后手防守特别有效
+3. **Alpha-Beta剪枝**：quiescence内部也做剪枝，最大4层防止搜索爆炸
+4. **辅助改进**：PST优化、鼠权重上调、走法排序增强
+
+**结果**：胜率56.1% vs v1，平局率从~21%暴跌至~3%（修复评估悬崖bug + 更深搜索解决对局），evasion让light方胜率从33%提升至39%
+
+**同期失败尝试**：在depth 4 + random-open 6框架下，所有评估函数微调（中路加权、den_threat、adaptive shield、鼠价值调整等）均未能达到55%胜率——先手优势和随机性主导了PK结果，微小评估差异被噪声淹没。
+
+### v3：评估结构革命（胜率76.9% vs v2，质变级飞跃）
+
+**核心发现**：evaluate()速度比评估维度数量更重要。每步搜索2-5万节点，evaluate()是热点。砍掉慢组件→搜索更深→看到更远，远比精确评估当前局面重要。
+
+1. **简化den_proximity为线性版**（最大贡献）：v2用3段分段函数产生评估不连续性（跳崖效应），v3改为`rank*15*(12-d)`单一线性函数，alpha-beta剪枝更高效
+2. **移除den_shield_score**：与den_proximity冗余，两者叠加导致推进信号过于激进
+3. **SEE过滤**：quiescence只搜`see_value≥0`的吃子，大幅减少搜索宽度
+4. **移除mobility_score**：evaluate中调用2次all_valid_moves()是性能杀手，移除后加速15-20%
+5. **rank≥5逃走限制**：evasion只保护高价值棋子，减少低价值延伸噪声
+6. **简化move_order_score**：移除rat-elephant距离加权、守卫区域等复杂逻辑
+
+**结果**：76.9%胜率 vs v2（v2 vs v1仅56.1%），这是质的飞跃。dark +26%、light +40%，说明改进是真正的棋力提升而非先手优势放大。
+
+### v4：防守补完 + TT质变（胜率57.5% vs v3）
+
+**核心问题**：v3是纯进攻型评估——den_proximity双方权重相同，AI不会优先防守。后手(light)时无法阻止对方象冲穴。
+
+**关键突破——不是加组件，而是调权重+删有害组件**：
+
+| 配置 | v4胜率 | 结论 |
+|------|--------|------|
+| 原始v4（3层den_proximity+den_shield+trap+mobility） | 25% | den_shield有害，mobility拖累 |
+| 3x防守权重 | 40% | 不对称防守有效但不够 |
+| 3x + urgent_den_threat | 42.5% | 最佳无TT配置 |
+| 3x + urgent + mobility | 40% | mobility反而拖累进攻 |
+| 3x + urgent + **TT** | **57.5%** | **TT是关键！** |
+
+**v4最终配置**（= v3 + 3项改动）：
+- **asymmetric den_proximity**：进攻`rank*15*(12-d)+rank*80*max(0,3-d)`，防守`rank*45*(12-d)+rank*400*max(0,3-d)`（3x权重）
+- **urgent_den_threat**：敌方1步进穴-8000×rank，2步-4000×rank
+- **Transposition Table**：复用已计算局面，等价于更大搜索深度（42.5%→57.5%）
+- **移除**：den_shield（best_ttg计算惩罚己方守穴棋子）、mobility（拖累节奏）、trap_control（效果弱）
+- **精准move_order防守**：拦截威胁+8000，远离威胁-20000，den-under-threat时紧挨穴+20000
+
+**历代对比（depth 3，40场）**：v1→90%, v2→87.5%, v3→57.5%
+
+### 四版核心教训总结
+
+| 版本 | 核心突破 | 最大教训 |
+|------|---------|---------|
+| v1→v2 | 搜索算法（quiescence） | 平局率高不是评估问题，是搜索深度问题 |
+| v2→v3 | 评估结构简化 | evaluate()速度 > 评估维度，砍冗余组件是正收益 |
+| v3→v4 | asymmetric防守 + TT | 防守必须非对称加权；TT是最大单一改进 |
+| 全程 | — | den_shield设计根本错误；mobility始终有害；先手优势始终存在 |
+
 ## 代码架构
 
 ### Rust 自对弈工具 (`tools/jungle-self-play/`)
@@ -16,10 +83,11 @@ src/
 ├── types.rs           # Board, Piece, Move, Color, GameResult
 ├── constants.rs       # 棋盘常量、河/陷阱/兽穴位掩码、ORTHO方向
 ├── rules.rs           # 完整规则（禁止修改）
-├── heuristic.rs       # 版本路由：pub use crate::heuristic_v3::*;
+├── heuristic.rs       # 版本路由：pub use crate::heuristic_v4::*;
 ├── heuristic_v1.rs    # 基线评估函数 + 走法排序
 ├── heuristic_v2.rs    # v1 评估函数 + quiescence search + den_shield + mobility
-├── heuristic_v3.rs    # 当前版本 = 简化评估 + quiescence + SEE + rank>=5 evasion
+├── heuristic_v3.rs    # 简化评估 + quiescence + SEE + rank>=5 evasion
+├── heuristic_v4.rs    # 当前版本 = v3 + asymmetric defense + urgent_den_threat + TT
 ├── self_play.rs       # minimax + minimax_v3(TT+killer) + quiescence + PK + minimax_root_wasm
 ├── encoding.rs        # 棋盘编码（神经网络用，需 neural feature）
 ├── mcts.rs            # MCTS（需 neural feature）
@@ -41,12 +109,12 @@ src/
 
 ### WASM 版本同步
 
-v3之后不再需要手动同步Rust→TS评估函数。Hard模式直接使用WASM（Rust v3 heuristic + minimax_v3 TT+killer），easy/medium模式使用TS版（与v3一致但无TT/killer）。
+v4之后WASM直接包含最新heuristic。Hard模式直接使用WASM（Rust v4 heuristic + minimax_v3 TT+killer），easy/medium模式使用TS fallback（与v4一致但无TT/killer）。
 
 更新Rust heuristic时：
-1. 修改 `heuristic_v3.rs`
-2. 重新构建WASM：`wasm-pack build --target nodejs --out-dir ../../apps/server/src/services/ai/jungle/wasm-pkg --no-default-features --features wasm`
-3. 重启服务器即可生效（TS fallback仅在WASM加载失败时使用）
+1. 修改 `heuristic_v4.rs`
+2. 同步修改 `heuristic.ts`（TS fallback需手动保持一致）
+3. 重新构建WASM：`wasm-pack build --target nodejs --out-dir ../../apps/server/src/services/ai/jungle/wasm-pkg --no-default-features --features wasm`
 
 ## 约束
 
@@ -171,6 +239,91 @@ fn quiescence(board, color, alpha, beta, maximizing, ai_color, h, q_depth) -> i3
 | quiescence + delta pruning (depth 6) | 45.2% | delta pruning过于激进，误剪有利吃子链 |
 | quiescence + den-threat延伸 | 47.9% | 扩展非吃子走法太多，搜索变慢且引入噪声 |
 
+## v4 Heuristic 优化经验（防守突破）— v4 胜率 **57.5%** vs v3（✅ 超55%门槛）
+
+核心问题：v3纯进攻策略在hard后手（light方）时无法阻止对方象冲穴。v3的den_proximity只奖励进攻（己方棋子靠近对方穴），不惩罚防守（敌方棋子靠近己方穴），双方权重相同。
+
+关键发现：**先手优势极大**——v3 vs v3自对弈中dark方胜率68%+。v4要在后手时能防守住冲穴才能赢。
+
+v4 有效改进清单：
+
+| 改进 | 贡献度 | 说明 |
+|------|--------|------|
+| **asymmetric den_proximity（3x防守权重）** | 大 | 进攻：`rank * 15 * (12-d) + rank * 80 * max(0,3-d)`；防守：`rank * 45 * (12-d) + rank * 400 * max(0,3-d)`。防守3x权重让AI更关注敌方靠近己穴 |
+| **urgent_den_threat（1-2步进穴检测）** | 大 | 敌方1步可进己穴：-8000×rank；2步可进（先走一步再进）：-4000×rank。直接检测进穴路径，比den_proximity更精准 |
+| **Transposition Table** | 大 | v4开启TT（v3 PK时未开TT），复用已计算局面，等价于更大搜索深度。从42.5%→57.5%的关键提升 |
+| **move_order精准防守** | 中 | 拦截威胁方向+8000（离开守位移向威胁），无威胁方向离开-20000，靠近穴且靠近威胁+20000，靠近穴但远离威胁仅+2000 |
+| **移除den_shield** | 正 | v2的den_shield基于gap计算，惩罚己方棋子靠近己穴的防守站位，有害 |
+| **移除mobility** | 正 | v3已证明mobility是性能杀手，v4在evaluate中不计算mobility |
+| **移除trap_control** | 正 | 效果弱，增加计算量不值得 |
+
+### v4 PK 调参历程（v3 vs v4，depth 3）
+
+| 配置 | v4胜率 | 平局 | 结论 |
+|------|--------|------|------|
+| 原始v4（3层den_proximity+den_shield+trap+mobility） | 25% | — | den_shield有害，mobility拖累 |
+| 3x防守权重（45/150/600） | 40% | — | 不对称防守有效但不够 |
+| 3x + urgent_den_threat | 42.5% | 7.5% | 最佳无TT配置 |
+| 3x + urgent + mobility(3/步) | 40% | 2.5% | mobility反而拖累进攻节奏 |
+| 单层den_proximity + 2x防御 | 40% | 12.5% | 单层不如多层累加 |
+| 单层 + 3x防御 | 32.5% | 10% | 单层3x更差 |
+| 3x + urgent + **TT** | **57.5%** | 7.5% | **突破！TT是关键** |
+| 3x + urgent + TT + 精准move_order | **57.5%** | 7.5% | 稳定确认 |
+
+### v4 vs 历代版本（depth 3，40场）
+
+| 对手 | v4胜率 | 平局 | v4非负率 |
+|------|--------|------|----------|
+| v1 | **90%** | 5% | 95% |
+| v2 | **87.5%** | 2.5% | 90% |
+| v3 | **57.5%** | 7.5% | 65% |
+
+### v4 关键教训
+
+1. **Transposition Table是搜索效率的关键提升**：TT让v4复用已计算局面，等价于更大搜索深度。从42.5%→57.5%，单一组件最大贡献
+2. **防守必须asymmetric**：对等权重的den_proximity（v3的`rank*15*(12-d)`双方一样）无法让AI优先防守。3x防守权重让AI在敌方靠近时切换到防守模式
+3. **urgent_den_threat比den_shield更精准**：den_shield基于gap计算，会惩罚己方棋子靠近己穴的防守站位（best_ttg变小→gap变大→惩罚更大→AI不愿守穴）。urgent_den_threat直接检测1-2步可进穴的威胁，信号更清晰
+4. **move_order防守激励必须区分方向**：从守位离开移向威胁方向=拦截（+8000），从守位离开远离威胁=失位（-20000）。不区分会导致AI离开守位拦截反而被惩罚
+5. **靠近穴的奖励必须绑定威胁位置**：单纯"靠近己穴"给巨奖（+20000）会让AI无脑靠近穴而不去拦截。应只在靠近威胁时才给巨奖（+20000），否则只给小奖（+2000）
+6. **mobility在evaluate中仍然有害**：v4再次确认mobility拖累性能，无论权重3还是0.5
+7. **den_shield的逻辑缺陷**：best_ttg计算取所有己方棋子中最小距离，这意味着己方棋子靠近己穴防守反而让best_ttg变小、gap变大、惩罚更大。这是一个根本性的设计错误——防守站位被惩罚
+
+### v4 配置详情
+
+**evaluate_board**:
+- material: BASE_VALUES(8421) + PST（同v3）
+- counter_bonus: 同v3
+- den_proximity: asymmetric——进攻`rank*15*(12-d) + rank*80*max(0,3-d)`，防守`rank*45*(12-d) + rank*400*max(0,3-d)`
+- rat_hunt: 同v3
+- river_block: 同v3
+- urgent_den_threat: 新增——1步进穴-8000×rank，2步进穴-4000×rank
+- **不含** trap_control、den_shield、mobility
+
+**move_order_score**:
+- 赢穴+100000（同v3）
+- 吃子+10000+被吃子价值（同v3）
+- 敌方陷阱+5000（同v3）
+- 防守区逻辑（v4新增/优化）：
+  - 从守位(≤2)离开且移向威胁：+8000（拦截）
+  - 从守位离开远离威胁：-20000（失位）
+  - 靠近穴(d=1)且靠近威胁(≤2)：+20000
+  - 靠近穴(d=1)但远离威胁：+2000
+  - 靠近穴(d≤2)且靠近威胁(≤3)：+12000
+  - 靠近穴(d≤2)但远离威胁：+1000
+  - 捕获威胁棋子：+25000
+  - 靠近威胁(d=1)且rank≥敌方：+18000
+  - 路径阻塞变化：拦截+10000/失位-15000
+- 进攻推进（同v3）：距离差×50×rank，守位出发÷3
+- 非法河流-1000（同v3）
+
+**搜索配置**:
+- use_quiescence: true
+- use_tt: true（**v4独有**，v3 PK时未开TT）
+- q_depth: 4
+- extend_threats: false（开启会导致栈溢出）
+
+---
+
 ## v3 Heuristic 优化经验（重大突破）
 
 ### 核心发现：加速 evaluate() 比增加评估维度更有效
@@ -249,6 +402,7 @@ pub mod constants;
 pub mod types;
 pub mod rules;
 pub mod heuristic_v3;
+pub mod heuristic_v4;
 pub mod self_play;
 pub mod heuristic;
 pub mod heuristic_v1;
@@ -402,23 +556,24 @@ curl -s http://localhost:3001/rpc/makeMove -X POST \
 ## 迭代方向
 
 1. ~~评估函数微调~~ — 已证明在当前 PK 框架下无效
-2. **搜索算法改进** — 唯一有效的路径：
+2. **搜索算法改进** — 已验证的有效路径：
    - ~~Quiescence Search + Evasion~~ — ✅ v2已实现，+5.2%胜率
-   - Transposition Table（置换表）— v3 minimax已实现，PK中有效
+   - ~~Transposition Table~~ — ✅ v4已实现，+15%胜率（42.5%→57.5%）
    - Killer Move Heuristic — v3已实现，配合TT使用
    - Iterative Deepening — 逐层加深搜索，利用上一轮结果排序
    - PVS (Principal Variation Search) — 零窗口搜索提高效率
    - Null Move Pruning — 假设跳过一步，如果仍能产生beta剪枝则跳过
-3. **评估函数结构性改变**（非微调）— v3已验证：
-   - ✅ 简化den_proximity为线性版（最大贡献）
-   - ✅ 移除den_shield_score（冗余）
+3. **评估函数结构性改变**（非微调）— 已验证：
+   - ✅ 简化den_proximity为线性版（v3最大贡献）
+   - ✅ 移除den_shield_score（v3冗余/v4有害）
    - ✅ 移除mobility_score（性能杀手）
-   - ✅ SEE过滤劣质吃子延伸
-   - ✅ rank>=5逃走限制
-   - ✅ 简化move_order_score
+   - ✅ SEE过滤劣质吃子延伸（v3）
+   - ✅ rank>=5逃走限制（v3）
+   - ✅ 简化move_order_score（v3）
+   - ✅ asymmetric den_proximity + urgent_den_threat（v4防守突破）
    - 路径控制（通向对方穴的关键路径是否被控制）
    - 棋子间协同（保护链、防御网络）
-4. **WASM集成** — ✅ 已完成，Rust v3 heuristic直接用于生产环境
+4. **WASM集成** — ✅ 已完成，Rust v4 heuristic直接用于生产环境
 5. PK 框架优化：
    - 增加 random-open 到 8-10 可减少先手优势影响
    - 增加局数（800+）减少统计噪声
@@ -437,6 +592,10 @@ curl -s http://localhost:3001/rpc/makeMove -X POST \
 - **quiescence宽度控制决定其有效性** — SEE过滤+rank限制让quiescence只延伸有价值战术链，避免在低价值走法上浪费搜索预算
 - **WASM集成消除TS同步负担** — Rust→WASM→Node.js，彻底解决手动同步Rust评估函数到TS的维护问题，且获得5-10倍性能优势
 - **先手优势始终存在** — 同等heuristic下Dark vs Light约68% vs 24%，改进应同时对两方有效
+- **Transposition Table是最大单一改进** — v4开启TT后胜率从42.5%→57.5%，等价于更大的搜索深度
+- **den_shield的设计有根本缺陷** — best_ttg取己方最小距离，己方棋子靠近己穴防守反而让gap变大、惩罚更大，导致AI不愿守穴
+- **防守评估必须asymmetric** — 对等权重的den_proximity无法让AI优先防守，3x防守权重是v4的基石
+- **move_order防守激励需绑定方向** — 单纯"靠近己穴"给巨奖会让AI无脑靠穴不拦截，必须区分"靠近威胁"和"远离威胁"
 
 ## 每次迭代流程
 

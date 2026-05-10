@@ -60,6 +60,14 @@ pub fn get_heuristic(version: &str) -> HeuristicFns {
             q_depth: 4,
             extend_threats: false,
         },
+        "v5" => HeuristicFns {
+            evaluate: crate::heuristic_v5::evaluate_board,
+            move_order: crate::heuristic_v5::move_order_score,
+            use_quiescence: true,
+            use_tt: true,
+            q_depth: 4,
+            extend_threats: false,
+        },
         _ => panic!("Unknown heuristic version: {version}"),
     }
 }
@@ -138,21 +146,21 @@ impl KillerMoveTable {
         }
     }
 
-    fn store(&mut self, ply: usize, piece_idx: u8, captured_idx: u8) {
+    fn store(&mut self, ply: usize, from_idx: u8, to_idx: u8) {
         if ply < self.killers.len() {
             let slot = &mut self.killers[ply];
-            if slot[0] != Some((piece_idx, captured_idx)) {
+            if slot[0] != Some((from_idx, to_idx)) {
                 slot[1] = slot[0];
-                slot[0] = Some((piece_idx, captured_idx));
+                slot[0] = Some((from_idx, to_idx));
             }
         }
     }
 
-    fn is_killer(&self, ply: usize, piece_idx: u8, captured_idx: u8) -> bool {
+    fn is_killer(&self, ply: usize, from_idx: u8, to_idx: u8) -> bool {
         if ply >= self.killers.len() {
             return false;
         }
-        let key = (piece_idx, captured_idx);
+        let key = (from_idx, to_idx);
         self.killers[ply][0] == Some(key) || self.killers[ply][1] == Some(key)
     }
 
@@ -163,7 +171,7 @@ impl KillerMoveTable {
     }
 }
 
-static ZOBRIST_PIECES: [[u64; 16]; 63] = {
+pub static ZOBRIST_PIECES: [[u64; 16]; 63] = {
     let mut tables = [[0u64; 16]; 63];
     let mut i = 0;
     while i < 63 {
@@ -177,7 +185,7 @@ static ZOBRIST_PIECES: [[u64; 16]; 63] = {
     tables
 };
 
-static ZOBRIST_COLOR: u64 = splitmix64(63 * 16 + 1);
+pub static ZOBRIST_COLOR: u64 = splitmix64(63 * 16 + 1);
 
 const fn splitmix64(mut x: u64) -> u64 {
     x = x.wrapping_add(0x9e3779b97f4a7c15);
@@ -199,13 +207,30 @@ fn compute_hash(board: &Board) -> u64 {
     h
 }
 
+pub fn init_hash(board: &mut Board) {
+    board.hash = compute_hash(board);
+}
+
+pub fn new_board() -> Board {
+    let mut board = Board::new();
+    init_hash(&mut board);
+    board
+}
+
+pub fn new_flipped_board(flip: bool) -> Board {
+    let board = Board::new();
+    let mut board = if flip { board.flipped() } else { board };
+    init_hash(&mut board);
+    board
+}
+
 #[cfg(feature = "neural")]
 pub fn play_one_game_neural(
     mcts_iterations: u32,
     temperature_moves: usize,
     rng: &mut impl rand::Rng,
 ) -> (Vec<PositionRecord>, GameResult) {
-    let mut board = Board::new();
+    let mut board = new_board();
     let mut records: Vec<PositionRecord> = Vec::with_capacity(150);
     let mut arena = MctsArena::new();
 
@@ -625,7 +650,7 @@ pub(crate) fn minimax_v3(
     tt: &mut TranspositionTable,
     killers: &mut KillerMoveTable,
 ) -> (i32, Option<Move>) {
-    let hash = compute_hash(board);
+    let hash = board.hash;
 
     if let Some(result) = get_game_result(board, color) {
         let val = match result {
@@ -641,6 +666,24 @@ pub(crate) fn minimax_v3(
             return (quiescence(board, color, alpha, beta, maximizing, ai_color, h, h.q_depth), None);
         }
         return ((h.evaluate)(board, ai_color), None);
+    }
+
+    let mut alpha = alpha;
+    let mut beta = beta;
+
+    if let Some(entry) = tt.probe(hash) {
+        if entry.depth >= depth && entry.flag == TT_EXACT {
+            return (entry.score, None);
+        }
+        if entry.flag == TT_LOWER {
+            alpha = alpha.max(entry.score);
+        }
+        if entry.flag == TT_UPPER {
+            beta = beta.min(entry.score);
+        }
+        if alpha >= beta {
+            return (entry.score, None);
+        }
     }
 
     let moves = all_valid_moves(board, color);
@@ -672,8 +715,8 @@ pub(crate) fn minimax_v3(
             if a.from.idx() as u8 == ff && a.to.idx() as u8 == ft { sa += 50000; }
             if b.from.idx() as u8 == ff && b.to.idx() as u8 == ft { sb += 50000; }
         }
-        if !a.is_capture && killers.is_killer(ply, a.piece_idx, a.captured_idx) { sa += 40000; }
-        if !b.is_capture && killers.is_killer(ply, b.piece_idx, b.captured_idx) { sb += 40000; }
+        if !a.is_capture && killers.is_killer(ply, a.from.idx() as u8, a.to.idx() as u8) { sa += 40000; }
+        if !b.is_capture && killers.is_killer(ply, b.from.idx() as u8, b.to.idx() as u8) { sb += 40000; }
         sb.cmp(&sa)
     });
 
@@ -695,7 +738,7 @@ pub(crate) fn minimax_v3(
             a = a.max(best_val);
             if beta <= a {
                 if !m.is_capture {
-                    killers.store(ply, m.piece_idx, m.captured_idx);
+                    killers.store(ply, m.from.idx() as u8, m.to.idx() as u8);
                 }
                 break;
             }
@@ -721,7 +764,7 @@ pub(crate) fn minimax_v3(
             b = b.min(best_val);
             if b <= alpha {
                 if !m.is_capture {
-                    killers.store(ply, m.piece_idx, m.captured_idx);
+                    killers.store(ply, m.from.idx() as u8, m.to.idx() as u8);
                 }
                 break;
             }
@@ -749,9 +792,16 @@ pub fn minimax_root_wasm(board: &Board, color: Color, depth: i32) -> Option<Move
 
     let mut tt = TranspositionTable::new();
     let mut killers = KillerMoveTable::new(depth as usize + 1);
+    let mut best_move: Option<Move> = None;
 
-    let (_val, mv) = minimax_v3(board, color, depth, i32::MIN, i32::MAX, true, color, h, 0, &mut tt, &mut killers);
-    mv
+    for d in 1..=depth {
+        let (_val, mv) = minimax_v3(board, color, d, i32::MIN, i32::MAX, true, color, h, 0, &mut tt, &mut killers);
+        if let Some(m) = mv {
+            best_move = Some(m);
+        }
+    }
+
+    best_move
 }
 
 
@@ -768,7 +818,7 @@ pub fn play_one_game(
     flip: bool,
     rng: &mut impl rand::Rng,
 ) -> (Vec<PositionRecord>, GameResult) {
-    let mut board = if flip { Board::new().flipped() } else { Board::new() };
+    let mut board = new_flipped_board(flip);
     let mut records: Vec<PositionRecord> = Vec::with_capacity(150);
 
     loop {
@@ -958,7 +1008,7 @@ pub fn play_pk_mm_game(
     random_open: usize,
     rng: &mut impl rand::Rng,
 ) -> (GameResult, usize, Vec<String>) {
-    let mut board = Board::new();
+    let mut board = new_board();
     let mut move_count: usize = 0;
     let mut move_log: Vec<String> = Vec::new();
     let mut tt_dark = TranspositionTable::new();
@@ -1091,7 +1141,7 @@ pub fn play_pk_game(
     mcts_iterations: u32,
     rng: &mut impl rand::Rng,
 ) -> (GameResult, usize, i32) {
-    let mut board = Board::new();
+    let mut board = new_board();
     let mut arena = MctsArena::new();
     let config = MctsConfig {
         iterations: mcts_iterations,
@@ -1159,7 +1209,7 @@ pub fn play_pk_mixed_game(
     model_path: &str,
     rng: &mut impl rand::Rng,
 ) -> (GameResult, usize, Vec<String>) {
-    let mut board = Board::new();
+    let mut board = new_board();
     let mut arena = MctsArena::new();
     let config = MctsConfig {
         iterations: mcts_iterations,

@@ -64,6 +64,7 @@ fn ts_board_to_rust(ts: &TsBoardState) -> Option<Board> {
         grid: [EMPTY; 63],
         next_color: parse_color(&ts.next_color)?,
         half_move_clock: ts.half_move_clock,
+        hash: 0,
     };
 
     for p in &ts.pieces {
@@ -119,7 +120,8 @@ pub fn get_best_move(board_json: &str, ai_color: &str, depth: u32) -> Option<Str
     console_error_panic_hook::set_once();
 
     let ts_board: TsBoardState = serde_json::from_str(board_json).ok()?;
-    let board = ts_board_to_rust(&ts_board)?;
+    let mut board = ts_board_to_rust(&ts_board)?;
+    crate::self_play::init_hash(&mut board);
     let color = parse_color(ai_color)?;
 
     let best_move = minimax_root_wasm(&board, color, depth as i32)?;
