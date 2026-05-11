@@ -3,15 +3,15 @@
 /**
  * @param {string} board_json
  * @param {string} ai_color
- * @param {number} depth
+ * @param {number} time_ms
  * @returns {string | undefined}
  */
-function get_best_move(board_json, ai_color, depth) {
+function get_best_move(board_json, ai_color, time_ms) {
     const ptr0 = passStringToWasm0(board_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(ai_color, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.get_best_move(ptr0, len0, ptr1, len1, depth);
+    const ret = wasm.get_best_move(ptr0, len0, ptr1, len1, time_ms);
     let v3;
     if (ret[0] !== 0) {
         v3 = getStringFromWasm0(ret[0], ret[1]).slice();
@@ -20,9 +20,17 @@ function get_best_move(board_json, ai_color, depth) {
     return v3;
 }
 exports.get_best_move = get_best_move;
+
+function new_game() {
+    wasm.new_game();
+}
+exports.new_game = new_game;
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
+        __wbg___wbindgen_throw_9c75d47bf9e7731e: function(arg0, arg1) {
+            throw new Error(getStringFromWasm0(arg0, arg1));
+        },
         __wbg_error_a6fa202b58aa1cd3: function(arg0, arg1) {
             let deferred0_0;
             let deferred0_1;
@@ -36,6 +44,10 @@ function __wbg_get_imports() {
         },
         __wbg_new_227d7c05414eb861: function() {
             const ret = new Error();
+            return ret;
+        },
+        __wbg_now_4f457f10f864aec5: function() {
+            const ret = Date.now();
             return ret;
         },
         __wbg_stack_3b0d974bbf31e44f: function(arg0, arg1) {

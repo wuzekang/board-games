@@ -4,9 +4,9 @@ import { createRequire } from 'module';
 import path from 'path';
 import fs from 'fs';
 
-const DEPTH: Record<string, number> = { easy: 1, medium: 2, hard: 3 };
+const TIME_MS: Record<string, number> = { easy: 500, medium: 1000, hard: 2000 };
 
-let wasm: { get_best_move(board_json: string, ai_color: string, depth: number): string | undefined } | null = null;
+let wasm: { get_best_move(board_json: string, ai_color: string, time_ms: number): string | undefined; new_game(): void } | null = null;
 let loadAttempted = false;
 
 function resolveWasmPath(): string {
@@ -49,7 +49,7 @@ export async function getWasmMove(
     const json = wasm.get_best_move(
       JSON.stringify(board),
       aiColor.toLowerCase(),
-      DEPTH[difficulty] ?? 3,
+      TIME_MS[difficulty] ?? 2000,
     );
     return json ? JSON.parse(json) : null;
   } catch (err) {

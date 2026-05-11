@@ -1,6 +1,13 @@
+use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 use crate::types::{Board, Color, Move, Piece, PieceType, Pos, EMPTY};
-use crate::self_play::{get_heuristic, minimax_root_wasm};
+use crate::self_play::{minimax_root_wasm, TranspositionTable, KillerMoveTable, HistoryTable};
+
+thread_local! {
+    static TT: RefCell<TranspositionTable> = RefCell::new(TranspositionTable::new());
+    static KILLERS: RefCell<KillerMoveTable> = RefCell::new(KillerMoveTable::new(10));
+    static HISTORY: RefCell<HistoryTable> = RefCell::new(HistoryTable::new());
+}
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -115,7 +122,18 @@ fn rust_move_to_ts(mv: &Move) -> TsMove {
 }
 
 #[wasm_bindgen]
-pub fn get_best_move(board_json: &str, ai_color: &str, depth: u32) -> Option<String> {
+pub fn new_game() {
+    TT.with(|tt| tt.borrow_mut().clear());
+    KILLERS.with(|k| k.borrow_mut().clear());
+    HISTORY.with(|h| h.borrow_mut().clear());
+}
+
+fn now_ms() -> f64 {
+    js_sys::Date::now()
+}
+
+#[wasm_bindgen]
+pub fn get_best_move(board_json: &str, ai_color: &str, time_ms: u32) -> Option<String> {
     #[cfg(feature = "wasm")]
     console_error_panic_hook::set_once();
 
@@ -124,7 +142,31 @@ pub fn get_best_move(board_json: &str, ai_color: &str, depth: u32) -> Option<Str
     crate::self_play::init_hash(&mut board);
     let color = parse_color(ai_color)?;
 
-    let best_move = minimax_root_wasm(&board, color, depth as i32)?;
+    let deadline = now_ms() + time_ms as f64;
+    let max_depth = 8;
+    let mut best_move_opt: Option<Move> = None;
+
+    TT.with(|tt| KILLERS.with(|killers| HISTORY.with(|history| {
+        let mut tt = tt.borrow_mut();
+        let mut killers = killers.borrow_mut();
+        let mut history = history.borrow_mut();
+        killers.clear();
+        history.age();
+
+        for d in 1..=max_depth {
+            if now_ms() >= deadline && best_move_opt.is_some() {
+                break;
+            }
+            let mv = minimax_root_wasm(&board, color, d, &mut tt, &mut killers, &mut history);
+            if let Some(m) = mv {
+                best_move_opt = Some(m);
+            } else {
+                break;
+            }
+        }
+    })));
+
+    let best_move = best_move_opt?;
     let ts_move = rust_move_to_ts(&best_move);
     serde_json::to_string(&ts_move).ok()
 }

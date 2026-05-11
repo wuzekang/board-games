@@ -24,6 +24,7 @@ pub struct HeuristicFns {
     pub use_tt: bool,
     pub q_depth: i32,
     pub extend_threats: bool,
+    pub use_nmp: bool,
 }
 
 pub fn get_heuristic(version: &str) -> HeuristicFns {
@@ -35,6 +36,7 @@ pub fn get_heuristic(version: &str) -> HeuristicFns {
             use_tt: false,
             q_depth: 0,
             extend_threats: false,
+            use_nmp: false,
         },
         "v2" => HeuristicFns {
             evaluate: crate::heuristic_v2::evaluate_board,
@@ -43,6 +45,7 @@ pub fn get_heuristic(version: &str) -> HeuristicFns {
             use_tt: false,
             q_depth: 4,
             extend_threats: false,
+            use_nmp: false,
         },
         "v3" | "latest" => HeuristicFns {
             evaluate: crate::heuristic_v3::evaluate_board,
@@ -51,6 +54,7 @@ pub fn get_heuristic(version: &str) -> HeuristicFns {
             use_tt: false,
             q_depth: 4,
             extend_threats: false,
+            use_nmp: false,
         },
         "v4" => HeuristicFns {
             evaluate: crate::heuristic_v4::evaluate_board,
@@ -59,6 +63,7 @@ pub fn get_heuristic(version: &str) -> HeuristicFns {
             use_tt: true,
             q_depth: 4,
             extend_threats: false,
+            use_nmp: false,
         },
         "v5" => HeuristicFns {
             evaluate: crate::heuristic_v5::evaluate_board,
@@ -67,6 +72,25 @@ pub fn get_heuristic(version: &str) -> HeuristicFns {
             use_tt: true,
             q_depth: 4,
             extend_threats: false,
+            use_nmp: true,
+        },
+        "v5-no-nmp" => HeuristicFns {
+            evaluate: crate::heuristic_v5::evaluate_board,
+            move_order: crate::heuristic_v5::move_order_score,
+            use_quiescence: true,
+            use_tt: true,
+            q_depth: 4,
+            extend_threats: false,
+            use_nmp: false,
+        },
+        "v6" => HeuristicFns {
+            evaluate: crate::heuristic_v6::evaluate_board,
+            move_order: crate::heuristic_v6::move_order_score,
+            use_quiescence: true,
+            use_tt: true,
+            q_depth: 4,
+            extend_threats: false,
+            use_nmp: true,
         },
         _ => panic!("Unknown heuristic version: {version}"),
     }
@@ -94,7 +118,7 @@ pub(crate) struct TranspositionTable {
 }
 
 impl TranspositionTable {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             entries: vec![None; TT_SIZE],
         }
@@ -126,7 +150,7 @@ impl TranspositionTable {
         }
     }
 
-    fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         for e in self.entries.iter_mut() {
             *e = None;
         }
@@ -140,7 +164,7 @@ pub(crate) struct KillerMoveTable {
 }
 
 impl KillerMoveTable {
-    fn new(max_depth: usize) -> Self {
+    pub(crate) fn new(max_depth: usize) -> Self {
         Self {
             killers: vec![[None; KILLER_SLOTS]; max_depth + 1],
         }
@@ -164,9 +188,54 @@ impl KillerMoveTable {
         self.killers[ply][0] == Some(key) || self.killers[ply][1] == Some(key)
     }
 
-    fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         for slot in self.killers.iter_mut() {
             *slot = [None; KILLER_SLOTS];
+        }
+    }
+}
+
+const HISTORY_SIZE: usize = 63 * 63;
+
+pub(crate) struct HistoryTable {
+    scores: [[i32; 63]; 63],
+}
+
+impl HistoryTable {
+    pub(crate) fn new() -> Self {
+        Self {
+            scores: [[0; 63]; 63],
+        }
+    }
+
+    #[inline]
+    fn score(&self, from_idx: u8, to_idx: u8) -> i32 {
+        self.scores[from_idx as usize][to_idx as usize]
+    }
+
+    fn store_bonus(&mut self, from_idx: u8, to_idx: u8, depth: i32) {
+        let bonus = depth * depth;
+        let fi = from_idx as usize;
+        let ti = to_idx as usize;
+        self.scores[fi][ti] += bonus;
+        if self.scores[fi][ti] > 1_000_000 {
+            self.scores[fi][ti] = 1_000_000;
+        }
+    }
+
+    pub(crate) fn age(&mut self) {
+        for row in self.scores.iter_mut() {
+            for v in row.iter_mut() {
+                *v >>= 1;
+            }
+        }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        for row in self.scores.iter_mut() {
+            for v in row.iter_mut() {
+                *v = 0;
+            }
         }
     }
 }
@@ -649,6 +718,8 @@ pub(crate) fn minimax_v3(
     ply: usize,
     tt: &mut TranspositionTable,
     killers: &mut KillerMoveTable,
+    history: &mut HistoryTable,
+    do_null: bool,
 ) -> (i32, Option<Move>) {
     let hash = board.hash;
 
@@ -686,6 +757,38 @@ pub(crate) fn minimax_v3(
         }
     }
 
+    let null_depth = depth - 3;
+    if h.use_nmp && do_null && null_depth > 0 && !maximizing && board.piece_count(color) > 1 {
+        let null_board = Board {
+            next_color: color.opponent(),
+            half_move_clock: board.half_move_clock + 1,
+            hash: board.hash ^ ZOBRIST_COLOR,
+            ..board.clone()
+        };
+        let (null_val, _) = minimax_v3(
+            &null_board, color.opponent(), null_depth, alpha, beta, true,
+            ai_color, h, ply + 1, tt, killers, history, false,
+        );
+        if null_val >= beta {
+            return (null_val, None);
+        }
+    }
+    if h.use_nmp && do_null && null_depth > 0 && maximizing && board.piece_count(color.opponent()) > 1 {
+        let null_board = Board {
+            next_color: color.opponent(),
+            half_move_clock: board.half_move_clock + 1,
+            hash: board.hash ^ ZOBRIST_COLOR,
+            ..board.clone()
+        };
+        let (null_val, _) = minimax_v3(
+            &null_board, color.opponent(), null_depth, alpha, beta, false,
+            ai_color, h, ply + 1, tt, killers, history, false,
+        );
+        if null_val <= alpha {
+            return (null_val, None);
+        }
+    }
+
     let moves = all_valid_moves(board, color);
     if moves.is_empty() {
         return (-(INF - 1), None);
@@ -717,6 +820,8 @@ pub(crate) fn minimax_v3(
         }
         if !a.is_capture && killers.is_killer(ply, a.from.idx() as u8, a.to.idx() as u8) { sa += 40000; }
         if !b.is_capture && killers.is_killer(ply, b.from.idx() as u8, b.to.idx() as u8) { sb += 40000; }
+        if !a.is_capture { sa += history.score(a.from.idx() as u8, a.to.idx() as u8); }
+        if !b.is_capture { sb += history.score(b.from.idx() as u8, b.to.idx() as u8); }
         sb.cmp(&sa)
     });
 
@@ -728,7 +833,7 @@ pub(crate) fn minimax_v3(
         let mut a = alpha;
         for &m in &sorted {
             let new_board = apply_move(board, m);
-            let (val, _) = minimax_v3(&new_board, color.opponent(), depth - 1, a, beta, false, ai_color, h, ply + 1, tt, killers);
+            let (val, _) = minimax_v3(&new_board, color.opponent(), depth - 1, a, beta, false, ai_color, h, ply + 1, tt, killers, history, true);
             if val > best_val {
                 best_val = val;
                 best_mv = m;
@@ -739,6 +844,7 @@ pub(crate) fn minimax_v3(
             if beta <= a {
                 if !m.is_capture {
                     killers.store(ply, m.from.idx() as u8, m.to.idx() as u8);
+                    history.store_bonus(m.from.idx() as u8, m.to.idx() as u8, depth);
                 }
                 break;
             }
@@ -754,7 +860,7 @@ pub(crate) fn minimax_v3(
         let mut b = beta;
         for &m in &sorted {
             let new_board = apply_move(board, m);
-            let (val, _) = minimax_v3(&new_board, color.opponent(), depth - 1, alpha, b, true, ai_color, h, ply + 1, tt, killers);
+            let (val, _) = minimax_v3(&new_board, color.opponent(), depth - 1, alpha, b, true, ai_color, h, ply + 1, tt, killers, history, true);
             if val < best_val {
                 best_val = val;
                 best_mv = m;
@@ -765,6 +871,7 @@ pub(crate) fn minimax_v3(
             if b <= alpha {
                 if !m.is_capture {
                     killers.store(ply, m.from.idx() as u8, m.to.idx() as u8);
+                    history.store_bonus(m.from.idx() as u8, m.to.idx() as u8, depth);
                 }
                 break;
             }
@@ -778,8 +885,15 @@ pub(crate) fn minimax_v3(
 }
 
 
-pub fn minimax_root_wasm(board: &Board, color: Color, depth: i32) -> Option<Move> {
-    let h = get_heuristic("v4");
+pub fn minimax_root_wasm(
+    board: &Board,
+    color: Color,
+    depth: i32,
+    tt: &mut TranspositionTable,
+    killers: &mut KillerMoveTable,
+    history: &mut HistoryTable,
+) -> Option<Move> {
+    let h = get_heuristic("v5");
     let moves = all_valid_moves(board, color);
     if moves.is_empty() {
         return None;
@@ -790,12 +904,10 @@ pub fn minimax_root_wasm(board: &Board, color: Color, depth: i32) -> Option<Move
         return Some(win_mv);
     }
 
-    let mut tt = TranspositionTable::new();
-    let mut killers = KillerMoveTable::new(depth as usize + 1);
     let mut best_move: Option<Move> = None;
 
     for d in 1..=depth {
-        let (_val, mv) = minimax_v3(board, color, d, i32::MIN, i32::MAX, true, color, h, 0, &mut tt, &mut killers);
+        let (_val, mv) = minimax_v3(board, color, d, i32::MIN, i32::MAX, true, color, h, 0, tt, killers, history, false);
         if let Some(m) = mv {
             best_move = Some(m);
         }
@@ -1015,6 +1127,8 @@ pub fn play_pk_mm_game(
     let mut tt_light = TranspositionTable::new();
     let mut killers_dark = KillerMoveTable::new(max_depth as usize + 1);
     let mut killers_light = KillerMoveTable::new(max_depth as usize + 1);
+    let mut history_dark = HistoryTable::new();
+    let mut history_light = HistoryTable::new();
 
     loop {
         let current_color = board.next_color;
@@ -1050,10 +1164,15 @@ pub fn play_pk_mm_game(
                     Color::Dark => &mut killers_dark,
                     Color::Light => &mut killers_light,
                 };
+                let history = match current_color {
+                    Color::Dark => &mut history_dark,
+                    Color::Light => &mut history_light,
+                };
+                history.age();
                 let mut best_move: Option<Move> = None;
                 for d in 1..=depth {
                     let (val, mv_opt) = minimax_v3(
-                        &board, current_color, d, i32::MIN, i32::MAX, true, current_color, h, 0, tt, killers,
+                        &board, current_color, d, i32::MIN, i32::MAX, true, current_color, h, 0, tt, killers, history, false,
                     );
                     if let Some(mv) = mv_opt {
                         best_move = Some(mv);

@@ -28,12 +28,13 @@ ndarray = { version = "0.17", optional = true }
 
 wasm-bindgen = { version = "0.2", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
+js-sys = { version = "0.3", optional = true }
 
 [features]
 default = []
 self_play_bin = ["rayon", "rand", "rand_distr", "clap", "indicatif", "neural"]
 neural = ["ort", "ndarray"]
-wasm = ["wasm-bindgen", "console_error_panic_hook"]
+wasm = ["wasm-bindgen", "console_error_panic_hook", "js-sys"]
 
 [profile.release]
 opt-level = 3

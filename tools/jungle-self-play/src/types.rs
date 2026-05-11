@@ -42,7 +42,7 @@ impl PieceType {
 
     #[inline]
     pub fn base_value(self) -> i32 {
-        [800, 700, 600, 500, 400, 300, 200, 250][self as usize]
+        [900, 750, 650, 500, 400, 300, 200, 350][self as usize]
     }
 }
 
@@ -143,6 +143,10 @@ impl Board {
             .iter()
             .filter(|p| p.as_ref().map_or(false, |p| p.color == color))
             .count()
+    }
+
+    pub fn total_pieces(&self) -> u8 {
+        self.pieces.iter().filter(|p| p.is_some()).count() as u8
     }
 }
 

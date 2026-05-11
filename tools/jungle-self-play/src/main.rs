@@ -6,6 +6,7 @@ mod heuristic_v2;
 mod heuristic_v3;
 mod heuristic_v4;
 mod heuristic_v5;
+mod heuristic_v6;
 #[cfg(feature = "neural")]
 mod mcts;
 #[cfg(feature = "neural")]

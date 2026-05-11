@@ -181,7 +181,7 @@ function trapControlScore(board: JungleBoardState, color: PieceColor): number {
   let score = 0;
   for (const piece of board.pieces) {
     if (piece.color !== color) continue;
-    if (opponentTrapSet.has(posKey(piece.position))) score += 100;
+    if (opponentTrapSet.has(posKey(piece.position))) score += 120;
   }
   return score;
 }
@@ -196,51 +196,31 @@ function denProximityScore(board: JungleBoardState, aiColor: PieceColor): number
     const rank = JUNGLE_PIECE_RANK[piece.type];
     if (piece.color === aiColor) {
       const d = Math.min(manhattan(piece.position, opponentDen), 12);
-      score += rank * 15 * (12 - d);
-      score += rank * 80 * Math.max(0, 3 - d);
+      score += rank * 22 * (12 - d);
+      if (d <= 4) {
+        score += rank * 70 * (5 - d);
+      }
+      if (d === 1) {
+        score += rank * 800;
+      } else if (d === 2) {
+        score += rank * 350;
+      }
     } else {
       const d = Math.min(manhattan(piece.position, ownDen), 12);
-      score -= rank * 45 * (12 - d);
-      score -= rank * 400 * Math.max(0, 3 - d);
+      score -= rank * 22 * (12 - d);
+      if (d <= 4) {
+        score -= rank * 70 * (5 - d);
+      }
+      if (d === 1) {
+        score -= rank * 400;
+      } else if (d === 2) {
+        score -= rank * 150;
+      }
     }
   }
   return score;
 }
 
-function denShieldScore(board: JungleBoardState, color: PieceColor): number {
-  const ownDen = color === PieceColor.DARK ? DARK_DEN : LIGHT_DEN;
-  let bestTtg = 99;
-
-  for (const piece of board.pieces) {
-    const dist = manhattan(piece.position, ownDen);
-    if (piece.color === color && dist < bestTtg) {
-      bestTtg = dist;
-    }
-  }
-
-  let score = 0;
-
-  for (const enemy of board.pieces) {
-    if (enemy.color === color) continue;
-    const ttd = manhattan(enemy.position, ownDen);
-    if (ttd > 10) continue;
-
-    const gap = ttd - bestTtg;
-    const tr = JUNGLE_PIECE_RANK[enemy.type];
-
-    if (gap <= -2) score -= 1500 * tr;
-    else if (gap === -1) score -= 900 * tr;
-    else if (gap === 0) score -= 600 * tr;
-    else if (gap === 1) score -= 300 * tr;
-    else if (gap === 2) score -= 150 * tr;
-    else if (gap === 3) score -= 75 * tr;
-    else if (gap === 4) score -= 40 * tr;
-    else if (gap === 5) score -= 20 * tr;
-    else score += gap * 8;
-  }
-
-  return score;
-}
 
 export function ratHuntScore(board: JungleBoardState, color: PieceColor): number {
   const opponentColor = color === PieceColor.DARK ? PieceColor.LIGHT : PieceColor.DARK;
@@ -321,181 +301,6 @@ function ratRiverBlockScore(board: JungleBoardState, color: PieceColor): number 
   return score;
 }
 
-function urgentDenThreat(board: JungleBoardState, aiColor: PieceColor): number {
-  const ownDen = aiColor === PieceColor.DARK ? DARK_DEN : LIGHT_DEN;
-  const opponentColor = aiColor === PieceColor.DARK ? PieceColor.LIGHT : PieceColor.DARK;
-  let score = 0;
-
-  for (const enemy of board.pieces) {
-    if (enemy.color !== opponentColor) continue;
-    const d = manhattan(enemy.position, ownDen);
-    if (d === 1) {
-      const validMoves = getValidMovesForPiece(board, enemy, opponentColor);
-      if (validMoves.some((m) => m.to.row === ownDen.row && m.to.col === ownDen.col)) {
-        score -= 8000 * JUNGLE_PIECE_RANK[enemy.type];
-      }
-    } else if (d === 2) {
-      for (const dir of ORTHOGONAL) {
-        const nr = enemy.position.row + dir.dr;
-        const nc = enemy.position.col + dir.dc;
-        if (!inBounds({ row: nr, col: nc })) continue;
-        const next: Position = { row: nr, col: nc };
-        if (manhattan(next, ownDen) !== 1) continue;
-        const occupied = board.pieces.some(
-          (p) => p.position.row === next.row && p.position.col === next.col,
-        );
-        if (occupied) continue;
-        const testBoard = applyJungleMoveForEval(board, enemy, next);
-        const movedPiece = testBoard.pieces.find(
-          (p) => p.id === enemy.id,
-        );
-        if (movedPiece) {
-          const validMoves = getValidMovesForPiece(testBoard, movedPiece, opponentColor);
-          if (validMoves.some((m) => m.to.row === ownDen.row && m.to.col === ownDen.col)) {
-            score -= 4000 * JUNGLE_PIECE_RANK[enemy.type];
-          }
-        }
-      }
-    }
-  }
-
-  return score;
-}
-
-function getValidMovesForPiece(
-  board: JungleBoardState,
-  piece: JunglePiece,
-  color: PieceColor,
-): JungleMove[] {
-  const moves: JungleMove[] = [];
-  for (const dir of ORTHOGONAL) {
-    const nr = piece.position.row + dir.dr;
-    const nc = piece.position.col + dir.dc;
-    if (!inBounds({ row: nr, col: nc })) continue;
-    const to: Position = { row: nr, col: nc };
-    if (isRiver(to) && piece.type !== JunglePieceType.RAT) continue;
-    if (
-      piece.type !== JunglePieceType.RAT &&
-      piece.position.row >= 3 &&
-      piece.position.row <= 5 &&
-      isRiver(piece.position)
-    ) {
-      if (!isRiver(to)) {
-      } else {
-        continue;
-      }
-    }
-    const ownDen = color === PieceColor.DARK ? DARK_DEN : LIGHT_DEN;
-    if (to.row === ownDen.row && to.col === ownDen.col) continue;
-    const target = board.pieces.find(
-      (p) => p.position.row === to.row && p.position.col === to.col,
-    );
-    if (!target) {
-      moves.push({
-        pieceId: piece.id,
-        from: piece.position,
-        to,
-        type: JungleMoveType.NORMAL,
-        capturedPieceId: null,
-      });
-    } else if (target.color !== color) {
-      const attackerRank = JUNGLE_PIECE_RANK[piece.type];
-      const defenderRank = JUNGLE_PIECE_RANK[target.type];
-      const opponentTrapSet =
-        color === PieceColor.DARK ? LIGHT_TRAP_SET : DARK_TRAP_SET;
-      const isTargetTrapped = opponentTrapSet.has(posKey(target.position));
-      if (isTargetTrapped || attackerRank >= defenderRank) {
-        if (piece.type === JunglePieceType.ELEPHANT && target.type === JunglePieceType.RAT)
-          continue;
-        if (piece.type === JunglePieceType.RAT && target.type === JunglePieceType.ELEPHANT) {
-          if (isRiver(piece.position) && !isRiver(target.position)) continue;
-        }
-        moves.push({
-          pieceId: piece.id,
-          from: piece.position,
-          to,
-          type: JungleMoveType.CAPTURE,
-          capturedPieceId: target.id,
-        });
-      }
-    }
-  }
-  if (
-    piece.type === JunglePieceType.LION ||
-    piece.type === JunglePieceType.TIGER
-  ) {
-    for (const dir of ORTHOGONAL) {
-      let r = piece.position.row + dir.dr;
-      let c = piece.position.col + dir.dc;
-      if (!inBounds({ row: r, col: c }) || !isRiver({ row: r, col: c })) continue;
-      let blocked = false;
-      while (inBounds({ row: r, col: c }) && isRiver({ row: r, col: c })) {
-        if (
-          board.pieces.some(
-            (p) =>
-              p.position.row === r &&
-              p.position.col === c &&
-              p.type === JunglePieceType.RAT,
-          )
-        ) {
-          blocked = true;
-          break;
-        }
-        r += dir.dr;
-        c += dir.dc;
-      }
-      if (blocked || !inBounds({ row: r, col: c })) continue;
-      const landing: Position = { row: r, col: c };
-      const ownDen = color === PieceColor.DARK ? DARK_DEN : LIGHT_DEN;
-      if (landing.row === ownDen.row && landing.col === ownDen.col) continue;
-      const target = board.pieces.find(
-        (p) => p.position.row === landing.row && p.position.col === landing.col,
-      );
-      if (!target) {
-        moves.push({
-          pieceId: piece.id,
-          from: piece.position,
-          to: landing,
-          type: JungleMoveType.NORMAL,
-          capturedPieceId: null,
-        });
-      } else if (target.color !== color) {
-        const attackerRank = JUNGLE_PIECE_RANK[piece.type];
-        const defenderRank = JUNGLE_PIECE_RANK[target.type];
-        const opponentTrapSet =
-          color === PieceColor.DARK ? LIGHT_TRAP_SET : DARK_TRAP_SET;
-        const isTargetTrapped = opponentTrapSet.has(posKey(target.position));
-        if (isTargetTrapped || attackerRank >= defenderRank) {
-          moves.push({
-            pieceId: piece.id,
-            from: piece.position,
-            to: landing,
-            type: JungleMoveType.CAPTURE,
-            capturedPieceId: target.id,
-          });
-        }
-      }
-    }
-  }
-  return moves;
-}
-
-function applyJungleMoveForEval(
-  board: JungleBoardState,
-  piece: JunglePiece,
-  to: Position,
-): JungleBoardState {
-  const newPieces = board.pieces.map((p) => {
-    if (p.id === piece.id) {
-      return { ...p, position: to };
-    }
-    if (p.position.row === to.row && p.position.col === to.col) {
-      return null;
-    }
-    return p;
-  }).filter(Boolean) as JunglePiece[];
-  return { ...board, pieces: newPieces };
-}
 
 export function evaluateJungleBoard(
   board: JungleBoardState,
@@ -520,39 +325,12 @@ export function evaluateJungleBoard(
 
   materialScore += counterBonus(board, aiColor) - counterBonus(board, humanColor);
 
+  const trapScore = trapControlScore(board, aiColor) - trapControlScore(board, humanColor);
   const denScore = denProximityScore(board, aiColor);
   const huntScore = ratHuntScore(board, aiColor) - ratHuntScore(board, humanColor);
   const blockScore = ratRiverBlockScore(board, aiColor) - ratRiverBlockScore(board, humanColor);
-  const urgentScore = urgentDenThreat(board, aiColor);
 
-  return materialScore + pstScore + denScore + huntScore + blockScore + urgentScore;
-}
-
-function isGuardSquare(pos: Position, color: PieceColor): boolean {
-  const den = color === PieceColor.DARK ? DARK_DEN : LIGHT_DEN;
-  return manhattan(pos, den) <= 2;
-}
-
-function isAdjacentToDen(pos: Position, den: Position): boolean {
-  return manhattan(pos, den) === 1;
-}
-
-function isOnPath(from: Position, to: Position, pos: Position): boolean {
-  if (pos.row === from.row && pos.col === from.col) return true;
-  const dr = to.row - from.row;
-  const dc = to.col - from.col;
-  const sr = dr === 0 ? 0 : dr > 0 ? 1 : -1;
-  const sc = dc === 0 ? 0 : dc > 0 ? 1 : -1;
-  let r = from.row;
-  let c = from.col;
-  while (r !== to.row || c !== to.col) {
-    if (r !== from.row || c !== from.col) {
-      if (pos.row === r && pos.col === c) return true;
-    }
-    if (Math.abs(to.row - r) >= Math.abs(to.col - c)) r += sr;
-    else c += sc;
-  }
-  return false;
+  return materialScore + pstScore + trapScore + denScore + huntScore + blockScore;
 }
 
 export function moveOrderScore(move: JungleMove, board: JungleBoardState, aiColor: PieceColor): number {
@@ -567,6 +345,9 @@ export function moveOrderScore(move: JungleMove, board: JungleBoardState, aiColo
     const captured = board.pieces.find((p) => p.id === move.capturedPieceId);
     if (captured) {
       score += 10000 + BASE_VALUES[captured.type];
+      if (manhattan(captured.position, aiDen) <= 2) {
+        score += 25000;
+      }
     }
   }
 
@@ -576,90 +357,12 @@ export function moveOrderScore(move: JungleMove, board: JungleBoardState, aiColo
   const piece = board.pieces.find((p) => p.id === move.pieceId);
   if (!piece) return score;
 
-  const enemyPieces = board.pieces.filter((p) => p.color !== aiColor);
-  let minTtd = 99;
-  let threatPos: Position | null = null;
-  for (const t of enemyPieces) {
-    const ttd = manhattan(t.position, aiDen);
-    if (ttd < minTtd) {
-      minTtd = ttd;
-      threatPos = t.position;
-    }
-  }
-
-  const ownPieces = board.pieces.filter((p) => p.color === aiColor);
-  const bestTtg = ownPieces.reduce((min, p) => Math.min(min, manhattan(p.position, aiDen)), 99);
-
-  if (move.type === JungleMoveType.CAPTURE && threatPos) {
-    const captured = board.pieces.find((p) => p.id === move.capturedPieceId);
-    if (captured && captured.position.row === threatPos.row && captured.position.col === threatPos.col) {
-      score += 25000;
-    }
-  }
-
-  const denUnderThreat = minTtd <= 3;
-
-  if (denUnderThreat || bestTtg <= 3 || manhattan(piece.position, aiDen) <= 3) {
-    const gap = minTtd - bestTtg;
-    const fromDistDen = manhattan(piece.position, aiDen);
-    const toDistDen = manhattan(move.to, aiDen);
-
-    if (fromDistDen <= 2 && toDistDen > 2 && gap <= 2) {
-      if (threatPos && manhattan(move.to, threatPos) < manhattan(piece.position, threatPos)) {
-        score += 8000;
-      } else {
-        score -= 20000;
-      }
-    }
-
-    if (toDistDen === 1 && fromDistDen > 1 && denUnderThreat) {
-      const nearThreat = threatPos && manhattan(move.to, threatPos) <= 2;
-      if (nearThreat) {
-        score += 20000;
-      } else {
-        score += 2000;
-      }
-    }
-
-    if (toDistDen <= 2 && fromDistDen > 2 && denUnderThreat) {
-      const nearThreat = threatPos && manhattan(move.to, threatPos) <= 3;
-      if (nearThreat) {
-        score += 12000;
-      } else {
-        score += 1000;
-      }
-    }
-
-    if (threatPos) {
-      const toDistThreat = manhattan(move.to, threatPos);
-      if (toDistThreat === 1) {
-        const enemyAtThreat = enemyPieces.find(
-          (p) => p.position.row === threatPos!.row && p.position.col === threatPos!.col,
-        );
-        if (enemyAtThreat && JUNGLE_PIECE_RANK[piece.type] >= JUNGLE_PIECE_RANK[enemyAtThreat.type]) {
-          score += 18000;
-        }
-      }
-
-      const otherOwn = ownPieces.filter((p) => p.id !== piece.id).map((p) => p.position);
-      const blockedBefore = [...otherOwn, piece.position].some((op) => isOnPath(threatPos!, aiDen, op));
-      const blockedAfter = [...otherOwn, move.to].some((op) => isOnPath(threatPos!, aiDen, op));
-
-      if (blockedBefore && !blockedAfter) {
-        score -= 15000;
-      }
-      if (!blockedBefore && blockedAfter) {
-        score += 10000;
-      }
-    }
-  }
-
   const distBefore = manhattan(piece.position, humanDen);
   const distAfter = manhattan(move.to, humanDen);
   if (distAfter < distBefore) {
     const base = (distBefore - distAfter) * 50 * JUNGLE_PIECE_RANK[piece.type];
     if (manhattan(piece.position, aiDen) <= 2 && manhattan(move.to, aiDen) > 2) {
-      score += Math.floor(base / 3);
+      score += Math.floor(base / 2);
     } else {
       score += base;
     }
